@@ -7,6 +7,7 @@ Claude Code에서 사용하는 커스텀 스킬 모음 레포지토리.
 | 스킬 | 설명 |
 |------|------|
 | [test-scenario-generator](./test-scenario-generator/) | Playwright로 웹 페이지를 분석하고 E2E 테스트 시나리오를 자동 생성하여 Notion DB에 등록 |
+| [feature-planner](./feature-planner/) | TDD 기반의 단계별 기능 구현 계획 생성. Red-Green-Refactor 사이클을 따르며 품질 게이트로 각 단계 검증 |
 
 ## 스킬 구조
 
