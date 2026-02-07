@@ -14,9 +14,18 @@ total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 total_output=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0')
 context_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
 
-# Code changes data
-lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
-lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
+# Code changes data - calculate from git diff (staged + unstaged)
+if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
+  diff_stats=$(git -C "$cwd" --no-optional-locks diff HEAD --numstat 2>/dev/null | awk '{added+=$1; removed+=$2} END {print added" "removed}')
+  lines_added=$(echo "$diff_stats" | cut -d' ' -f1)
+  lines_removed=$(echo "$diff_stats" | cut -d' ' -f2)
+  # Default to 0 if empty
+  lines_added=${lines_added:-0}
+  lines_removed=${lines_removed:-0}
+else
+  lines_added=0
+  lines_removed=0
+fi
 
 # Build status line parts
 parts=()
