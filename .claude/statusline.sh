@@ -74,9 +74,17 @@ if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
   fi
 
   bar="${color}["
-  [ $filled -gt 0 ] && bar+="$(printf '█%.0s' $(seq 1 $filled))"
+  # Gradient style: █▓▒ at the end of filled portion
+  if [ $filled -gt 2 ]; then
+    solid=$((filled - 2))
+    bar+="$(printf '█%.0s' $(seq 1 $solid))▓▒"
+  elif [ $filled -eq 2 ]; then
+    bar+="█▓"
+  elif [ $filled -eq 1 ]; then
+    bar+="█"
+  fi
   [ $empty -gt 0 ] && bar+="$(printf '░%.0s' $(seq 1 $empty))"
-  bar+=$'\e[0m'
+  bar+="]"$'\e[0m'
 
   parts+=("$sep")
   parts+=("🔋" "$bar")
