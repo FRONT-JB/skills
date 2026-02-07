@@ -14,28 +14,36 @@ total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 total_output=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0')
 context_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
 
+# Code changes data
+lines_added=$(echo "$input" | jq -r '.cost.total_lines_added // 0')
+lines_removed=$(echo "$input" | jq -r '.cost.total_lines_removed // 0')
+
 # Build status line parts
 parts=()
 
 # Gray separator
-sep=$'\e[0;90m│\e[0m'
+sep=$'\e[0;90m∙\e[0m'
 
 # 1. Current time with emoji - first position
 current_time=$(date +"%H:%M")
-parts+=("🕐" $'\e[0;36m'"${current_time}"$'\e[0m')
+parts+=("⏱️ " $'\e[0;36m'"${current_time}"$'\e[0m')
 
 # 2. Git branch (Green) with emoji
 if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
   branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
   if [ -n "$branch" ]; then
     parts+=("$sep")
-    parts+=("🌿")
+    parts+=("🌳")
     # Check if there are uncommitted changes
     if ! git -C "$cwd" --no-optional-locks diff --quiet 2>/dev/null || \
        ! git -C "$cwd" --no-optional-locks diff --cached --quiet 2>/dev/null; then
       parts+=($'\e[0;32m'"(${branch}*)"$'\e[0m')
     else
       parts+=($'\e[0;32m'"(${branch})"$'\e[0m')
+    fi
+    # Add code changes if any
+    if [ "$lines_added" -gt 0 ] || [ "$lines_removed" -gt 0 ]; then
+      parts+=($'\e[0;36m'"+${lines_added}/-${lines_removed}"$'\e[0m')
     fi
   fi
 fi
@@ -62,7 +70,7 @@ if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
   bar+=$'\e[0m'
 
   parts+=("$sep")
-  parts+=("📊" "$bar")
+  parts+=("🔋" "$bar")
 
   # 3. Percentage context used (same color as progress bar)
   pct_formatted=$(printf "%.1f%%" "$used_pct")
@@ -96,5 +104,5 @@ printf '%s\n' "${parts[*]}"
 
 # Second and third lines: ccusage (split at 🔥)
 ccusage_output=$(echo "$input" | ccusage statusline)
-echo "$ccusage_output" | sed 's/ | 🔥/\
+echo "$ccusage_output" | sed 's/ | / ∙ /g' | sed 's/ ∙ 🔥/\
 🔥/'
