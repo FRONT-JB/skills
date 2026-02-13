@@ -1,0 +1,7 @@
+{
+  "botToken": "xoxb-YOUR-BOT-TOKEN-HERE",
+  "defaultChannel": "YOUR-DEFAULT-CHANNEL-ID",
+  "retryCount": 1,
+  "timeout": 10000,
+  "teamId": "YOUR-TEAM-ID"
+}

@@ -1,0 +1,61 @@
+{
+  "name": "test-scenario-failed",
+  "description": "테스트 시나리오 실패 알림",
+  "fallbackText": "테스트 실패: {scenario_id} - {scenario_name}",
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": "🐛 테스트 실패 알림"
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*시나리오:*\n{scenario_id} - {scenario_name}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*분류:*\n{category} > {error_type}"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*우선순위:*\n`{priority} - {priority_label}`"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*환경:*\n🌐 웹"
+        }
+      ]
+    },
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*문제 상황*\n```{error}```"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": "📋 Notion 이슈"
+          },
+          "url": "{notion_link}",
+          "style": "primary"
+        }
+      ]
+    }
+  ]
+}
