@@ -1,0 +1,70 @@
+{
+  "project": {
+    "name": "ridenow-frontend",
+    "rootPath": "/path/to/your/project"
+  },
+  "apps": {
+    "admin": {
+      "name": "Admin Console",
+      "baseUrl": "http://localhost:5173",
+      "routePattern": "tanstack-router",
+      "dynamicRouteSymbol": "$",
+      "appPath": "apps/admin/src/app",
+      "servicesPath": "apps/admin/src/services",
+      "componentsPath": "apps/admin/src/components",
+      "pathAliases": {
+        "@components": "src/components",
+        "@services": "src/services",
+        "@hooks": "src/hooks",
+        "@types": "src/types",
+        "@schema": "src/schema",
+        "@constants": "src/constants",
+        "@store": "src/store",
+        "@utils": "src/utils"
+      }
+    },
+    "b2c": {
+      "name": "B2C Web",
+      "baseUrl": "http://localhost:3000",
+      "routePattern": "nextjs-app-router",
+      "dynamicRouteSymbol": "[id]",
+      "appPath": "apps/b2c/src/app",
+      "servicesPath": "apps/b2c/src/services",
+      "componentsPath": "apps/b2c/src/components",
+      "pathAliases": {
+        "@components": "src/components",
+        "@services": "src/services",
+        "@hooks": "src/hooks",
+        "@types": "src/types",
+        "@schema": "src/schema",
+        "@constants": "src/constants",
+        "@provider": "src/provider"
+      }
+    }
+  },
+  "testAccounts": {
+    "admin": {
+      "email": "admin@example.com",
+      "password": "your-password-here"
+    },
+    "user": {
+      "email": "user@example.com",
+      "password": "your-password-here"
+    }
+  },
+  "scenarioOutput": {
+    "baseDir": "/path/to/test-scenarios",
+    "format": "markdown",
+    "filenamePattern": "{app}-{route}-scenario.md"
+  },
+  "categories": [
+    { "code": "MBR", "name": "회원 관리", "app": "admin" },
+    { "code": "PRD", "name": "상품 관리", "app": "admin" },
+    { "code": "CTR", "name": "계약 관리", "app": "admin" },
+    { "code": "CON", "name": "상담 관리", "app": "admin" },
+    { "code": "STF", "name": "관리자 관리", "app": "admin" },
+    { "code": "B2C-PRD", "name": "상품 (B2C)", "app": "b2c" },
+    { "code": "B2C-CTR", "name": "계약 (B2C)", "app": "b2c" },
+    { "code": "B2C-MYP", "name": "마이페이지", "app": "b2c" }
+  ]
+}
