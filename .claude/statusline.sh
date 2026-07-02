@@ -31,17 +31,17 @@ thinking_on=$(echo "$input" | jq -r '.thinking.enabled | values | tostring')
 cc_version=$(echo "$input" | jq -r '.version // empty')
 git_worktree=$(echo "$input" | jq -r '.workspace.git_worktree // .worktree.name // empty')
 
-# ---- colors ----
-C_MODEL=$'\e[1;38;5;39m'    # bright blue (모델 강조)
-C_BRANCH=$'\e[0;38;5;114m'  # soft green (git)
-C_TOK=$'\e[0;38;5;176m'     # soft purple (토큰)
-C_TIME=$'\e[1;38;5;44m'     # teal (시각)
-C_PROMPT=$'\e[0;38;5;253m'  # near-white (프롬프트 · 가독성)
-C_PATH=$'\e[38;2;217;119;87m'  # Claude brand coral (#D97757)
-C_STATUS=$'\e[1;38;5;141m'  # violet (세션 상태 라인 앵커)
-C_LABEL=$'\e[0;38;5;245m'   # dim gray (필드 라벨)
-C_OFF=$'\e[0;38;5;244m'     # gray (thinking off 값)
-C_SEP=$'\e[0;38;5;240m'     # dim gray (구분자)
+# ---- colors (Ember theme · bold faces) ----
+C_MODEL=$'\e[1;38;2;255;158;100m'   # ember orange (모델 강조)
+C_BRANCH=$'\e[0;38;2;195;232;141m'  # ember green (thinking on / 긍정)
+C_TOK=$'\e[0;38;2;255;184;108m'     # ember amber (토큰)
+C_TIME=$'\e[1;38;2;255;203;107m'    # ember gold (시각)
+C_PROMPT=$'\e[0;38;2;236;224;210m'  # ember cream (프롬프트 · 값)
+C_PATH=$'\e[0;38;2;224;104;90m'     # ember coral-red (경로)
+C_STATUS=$'\e[1;38;2;247;140;108m'  # ember coral (세션 상태 앵커)
+C_LABEL=$'\e[0;38;2;154;136;119m'   # ember warm gray (필드 라벨)
+C_OFF=$'\e[0;38;2;154;136;119m'     # ember warm gray (thinking off 값)
+C_SEP=$'\e[0;38;2;74;64;56m'        # ember warm dark (구분자)
 R=$'\e[0m'
 sep="${C_SEP} · ${R}"
 
@@ -50,7 +50,7 @@ rate_color() {
   local p=$1
   if (( $(echo "$p >= 80" | bc -l) )); then printf '\e[0;38;5;203m'      # red
   elif (( $(echo "$p >= 50" | bc -l) )); then printf '\e[0;38;5;221m'    # amber
-  else printf '\e[0;38;5;114m'; fi                                       # green
+  else printf '\e[0;38;2;195;232;141m'; fi                               # ember green (낮음)
 }
 
 # ---- helpers ----
