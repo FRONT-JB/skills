@@ -25,6 +25,12 @@ fh_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
 sd_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 sd_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
+# effort(추론 강도) · thinking(확장 사고) · version(CC 버전) · worktree
+effort_level=$(echo "$input" | jq -r '.effort.level // empty')
+thinking_on=$(echo "$input" | jq -r '.thinking.enabled | values | tostring')
+cc_version=$(echo "$input" | jq -r '.version // empty')
+git_worktree=$(echo "$input" | jq -r '.workspace.git_worktree // .worktree.name // empty')
+
 # ---- colors ----
 C_MODEL=$'\e[1;38;5;39m'    # bright blue (모델 강조)
 C_BRANCH=$'\e[0;38;5;114m'  # soft green (git)
@@ -32,6 +38,9 @@ C_TOK=$'\e[0;38;5;176m'     # soft purple (토큰)
 C_TIME=$'\e[1;38;5;44m'     # teal (시각)
 C_PROMPT=$'\e[0;38;5;253m'  # near-white (프롬프트 · 가독성)
 C_PATH=$'\e[38;2;217;119;87m'  # Claude brand coral (#D97757)
+C_STATUS=$'\e[1;38;5;141m'  # violet (세션 상태 라인 앵커)
+C_LABEL=$'\e[0;38;5;245m'   # dim gray (필드 라벨)
+C_OFF=$'\e[0;38;5;244m'     # gray (thinking off 값)
 C_SEP=$'\e[0;38;5;240m'     # dim gray (구분자)
 R=$'\e[0m'
 sep="${C_SEP} · ${R}"
@@ -126,11 +135,25 @@ fi
 l2="${C_TIME}٩( ᐛ )و  ${now_t}${R}"
 [ -n "$last_prompt" ] && l2+=" ${C_PROMPT}${last_prompt}${R}"
 
-# ================= LINE 3: cwd (~ 축약) =================
+# ================= LINE 3: effort · thinking · version =================
+leff="${C_STATUS}( ◡̀_◡́)ᕤ  ${R}"
+ef_body=""
+[ -n "$effort_level" ] && ef_body+="${ef_body:+$sep}${C_LABEL}effort ${C_PROMPT}${effort_level}${R}"
+if [ -n "$thinking_on" ]; then
+  if [ "$thinking_on" = "true" ]; then th="on"; tc="$C_BRANCH"; else th="off"; tc="$C_OFF"; fi
+  ef_body+="${ef_body:+$sep}${C_LABEL}thinking ${tc}${th}${R}"
+fi
+[ -n "$cc_version" ] && ef_body+="${ef_body:+$sep}${C_LABEL}v${cc_version}${R}"
+leff+="$ef_body"
+
+# ================= LINE 4: cwd(branch) · worktree =================
 disp_cwd="${cwd/#$HOME/~}"
-l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}${R}"
-[ -n "$branch" ] && l3+="${sep}${C_PATH}${branch}${star}${R}"
+l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}"
+[ -n "$branch" ] && l3+="(${branch}${star})"
+l3+="${R}"
+[ -n "$git_worktree" ] && l3+="${sep}${C_PATH}${git_worktree}${R}"
 
 printf '%s\n' "$l2"
 printf '%s\n' "$l1"
+printf '%s\n' "$leff"
 printf '%s\n' "$l3"
