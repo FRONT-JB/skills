@@ -77,7 +77,6 @@ if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
        ! git -C "$cwd" --no-optional-locks diff --cached --quiet 2>/dev/null; then
       star="★"
     fi
-    l1+="${sep}${C_BRANCH}${branch}${star}${R}"
   fi
 fi
 
@@ -130,6 +129,7 @@ l2="${C_TIME}٩( ᐛ )و  ${now_t}${R}"
 # ================= LINE 3: cwd (~ 축약) =================
 disp_cwd="${cwd/#$HOME/~}"
 l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}${R}"
+[ -n "$branch" ] && l3+="${sep}${C_PATH}${branch}${star}${R}"
 
 printf '%s\n' "$l2"
 printf '%s\n' "$l1"
