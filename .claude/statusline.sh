@@ -1,125 +1,136 @@
 #!/bin/bash
 
+# Add nvm node bin to PATH so ccusage is accessible
+export NVM_DIR="$HOME/.nvm"
+if [ -f "$NVM_DIR/alias/default" ]; then
+  NODE_VERSION=$(cat "$NVM_DIR/alias/default")
+  [[ "$NODE_VERSION" != v* ]] && NODE_VERSION="v${NODE_VERSION}"
+  export PATH="$NVM_DIR/versions/node/${NODE_VERSION}/bin:$PATH"
+fi
+
 # Read JSON input from stdin
 input=$(cat)
 
-# Extract values from JSON
-model_name=$(echo "$input" | jq -r '.model.display_name // "Claude"')
+# ---- extract fields ----
+# display_name에 "(1M context)" 같은 표기가 오면 " context" 제거 → "Opus 4.8 (1M)"
+model_name=$(echo "$input" | jq -r '.model.display_name // "Claude"' | sed 's/ context//g')
 cwd=$(echo "$input" | jq -r '.workspace.current_dir // .cwd')
-project_dir=$(echo "$input" | jq -r '.workspace.project_dir // empty')
-
-# Context window data
-used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
+context_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
 total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 total_output=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0')
-context_size=$(echo "$input" | jq -r '.context_window.context_window_size // 0')
+transcript_path=$(echo "$input" | jq -r '.transcript_path // empty')
 
-# Code changes data - calculate from git diff (staged + unstaged)
-if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
-  diff_stats=$(git -C "$cwd" --no-optional-locks diff HEAD --numstat 2>/dev/null | awk '{added+=$1; removed+=$2} END {print added" "removed}')
-  lines_added=$(echo "$diff_stats" | cut -d' ' -f1)
-  lines_removed=$(echo "$diff_stats" | cut -d' ' -f2)
-  # Default to 0 if empty
-  lines_added=${lines_added:-0}
-  lines_removed=${lines_removed:-0}
-else
-  lines_added=0
-  lines_removed=0
-fi
+fh_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+fh_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
+sd_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+sd_reset=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
-# Build status line parts
-parts=()
+# ---- colors ----
+C_MODEL=$'\e[1;38;5;39m'    # bright blue (모델 강조)
+C_BRANCH=$'\e[0;38;5;114m'  # soft green (git)
+C_TOK=$'\e[0;38;5;176m'     # soft purple (토큰)
+C_TIME=$'\e[1;38;5;44m'     # teal (시각)
+C_PROMPT=$'\e[0;38;5;253m'  # near-white (프롬프트 · 가독성)
+C_PATH=$'\e[38;2;217;119;87m'  # Claude brand coral (#D97757)
+C_SEP=$'\e[0;38;5;240m'     # dim gray (구분자)
+R=$'\e[0m'
+sep="${C_SEP} · ${R}"
 
-# Gray separator
-sep=$'\e[0;90m∙\e[0m'
+# 사용률 기반 색 (낮음=초록 / 보통=노랑 / 높음=빨강)
+rate_color() {
+  local p=$1
+  if (( $(echo "$p >= 80" | bc -l) )); then printf '\e[0;38;5;203m'      # red
+  elif (( $(echo "$p >= 50" | bc -l) )); then printf '\e[0;38;5;221m'    # amber
+  else printf '\e[0;38;5;114m'; fi                                       # green
+}
 
-# 1. Current time with emoji - first position
-current_time=$(date +"%H:%M")
-parts+=("⏱️ " $'\e[0;36m'"${current_time}"$'\e[0m')
+# ---- helpers ----
+fmt_tok() {
+  local n=$1
+  if [ "$n" -ge 1000000 ]; then printf "%.1fM" "$(echo "scale=2; $n/1000000" | bc -l)"
+  elif [ "$n" -ge 1000 ]; then printf "%dk" "$((n/1000))"
+  else printf "%d" "$n"; fi
+}
+reltime() {
+  local now d h m; now=$(date +%s); d=$(( $1 - now )); [ "$d" -lt 0 ] && d=0
+  h=$((d/3600)); m=$(((d%3600)/60))
+  if [ "$h" -gt 0 ]; then echo "${h}h ${m}m"; else echo "${m}m"; fi
+}
 
-# 2. Git branch (Green) with emoji
+# ================= LINE 1: model · branch · tokens · 5h · 7d =================
+# context label: display_name에 이미 괄호 표기가 있으면 붙이지 않음(중복 방지)
+if [[ "$model_name" == *"("* ]]; then ctx=""
+elif [ "$context_size" -ge 1000000 ]; then ctx="1M"
+elif [ "$context_size" -ge 1000 ]; then ctx="$((context_size/1000))K"
+else ctx=""; fi
+
+l1="${C_MODEL}٩(•◡•)۶  ${model_name}"
+[ -n "$ctx" ] && l1+=" (${ctx})"
+l1+="${R}"
+
+# branch (★ if uncommitted changes)
 if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
   branch=$(git -C "$cwd" --no-optional-locks branch --show-current 2>/dev/null)
   if [ -n "$branch" ]; then
-    parts+=("$sep")
-    parts+=("🌳")
-    # Check if there are uncommitted changes
+    star=""
     if ! git -C "$cwd" --no-optional-locks diff --quiet 2>/dev/null || \
        ! git -C "$cwd" --no-optional-locks diff --cached --quiet 2>/dev/null; then
-      parts+=($'\e[0;32m'"(${branch}*)"$'\e[0m')
-    else
-      parts+=($'\e[0;32m'"(${branch})"$'\e[0m')
+      star="★"
     fi
-    # Add code changes if any
-    if [ "$lines_added" -gt 0 ] || [ "$lines_removed" -gt 0 ]; then
-      parts+=($'\e[0;36m'"+${lines_added}/-${lines_removed}"$'\e[0m')
-    fi
+    l1+="${sep}${C_BRANCH}${branch}${star}${R}"
   fi
 fi
 
-# 3. Progress bar (Green <50%, Yellow 50-75%, Red >75%) with emoji
-if [ -n "$used_pct" ] && [ "$used_pct" != "null" ]; then
-  # Calculate bar width (20 characters)
-  bar_width=20
-  filled=$(printf "%.0f" "$(echo "$used_pct * $bar_width / 100" | bc -l)")
-  empty=$((bar_width - filled))
-
-  # Color based on usage
-  if (( $(echo "$used_pct > 75" | bc -l) )); then
-    color=$'\e[0;31m' # red
-  elif (( $(echo "$used_pct > 50" | bc -l) )); then
-    color=$'\e[0;33m' # yellow
-  else
-    color=$'\e[0;32m' # green
-  fi
-
-  bar="${color}["
-  # Gradient style: █▓▒ at the end of filled portion
-  if [ $filled -gt 2 ]; then
-    solid=$((filled - 2))
-    bar+="$(printf '█%.0s' $(seq 1 $solid))▓▒"
-  elif [ $filled -eq 2 ]; then
-    bar+="█▓"
-  elif [ $filled -eq 1 ]; then
-    bar+="█"
-  fi
-  [ $empty -gt 0 ] && bar+="$(printf '░%.0s' $(seq 1 $empty))"
-  bar+="]"$'\e[0m'
-
-  parts+=("$sep")
-  parts+=("🔋" "$bar")
-
-  # 3. Percentage context used (same color as progress bar)
-  pct_formatted=$(printf "%.1f%%" "$used_pct")
-  parts+=("${color}${pct_formatted}"$'\e[0m')
-fi
-
-# 4. Tokens (Magenta) with emoji
+# tokens used / context size
 if [ "$context_size" -gt 0 ]; then
-  total_used=$((total_input + total_output))
-  parts+=("$sep")
-  parts+=("💬")
-
-  # Format with K suffix for readability
-  if [ $total_used -ge 1000 ]; then
-    used_k=$(echo "scale=1; $total_used / 1000" | bc)
-    parts+=($'\e[0;35m'"${used_k}K"$'\e[0m')
-  else
-    parts+=($'\e[0;35m'"${total_used}"$'\e[0m')
-  fi
-
-  if [ $context_size -ge 1000 ]; then
-    size_k=$(echo "scale=0; $context_size / 1000" | bc)
-    parts+=($'\e[0;35m'"/ ${size_k}K"$'\e[0m')
-  else
-    parts+=($'\e[0;35m'"/ ${context_size}"$'\e[0m')
-  fi
+  used=$((total_input + total_output))
+  l1+="${sep}${C_TOK}$(fmt_tok "$used")/$(fmt_tok "$context_size")${R}"
 fi
 
-# First line: custom info (branch, progress, tokens)
-printf '%s\n' "${parts[*]}"
+# 5h / 7d rate limits (사용률 색상 적용)
+if [ -n "$fh_pct" ]; then
+  fh_r=""; [ -n "$fh_reset" ] && fh_r=" ($(reltime "$fh_reset"))"
+  l1+="${sep}$(rate_color "$fh_pct")5h $(printf '%.0f' "$fh_pct")%${fh_r}${R}"
+fi
+if [ -n "$sd_pct" ]; then
+  sd_r=""; [ -n "$sd_reset" ] && sd_r=" ($(reltime "$sd_reset"))"
+  l1+="${sep}$(rate_color "$sd_pct")7d $(printf '%.0f' "$sd_pct")%${sd_r}${R}"
+fi
 
-# Second and third lines: ccusage (split at 🔥)
-ccusage_output=$(echo "$input" | ccusage statusline)
-echo "$ccusage_output" | sed 's/ | / ∙ /g' | sed 's/ ∙ 🔥/\
-🔥/'
+# ================= LINE 2: time + last prompt =================
+now_t=$(date +"%H:%M")
+last_prompt=""
+if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
+  last_prompt=$(tail -r "$transcript_path" 2>/dev/null \
+    | jq -r 'select(.type=="user")
+        | .message.content as $c
+        | if ($c|type)=="string" then $c
+          elif (($c|type)=="array") and ($c|any(.type=="image")) then ([$c[]|select(.type=="text")|.text]|join(" "))
+          else empty end' 2>/dev/null \
+    | sed 's/^[[:space:]]*//' \
+    | grep -vE '^(<|\[|/|Caveat:)' \
+    | head -1 | tr '\n' ' ' | sed 's/  */ /g' | sed 's/^ *//;s/ *$//')
+  if command -v perl > /dev/null 2>&1 && [ -n "$last_prompt" ]; then
+    # 터미널 폭에 맞춰 표시폭(칸) 기준으로 자름. 앞 이모티콘+시각(약 18칸) 제외.
+    cols=${COLUMNS:-120}
+    pmax=$(( cols - 18 )); [ "$pmax" -lt 30 ] && pmax=30
+    last_prompt=$(printf '%s' "$last_prompt" | PMAX=$pmax perl -CSD -ne '
+      chomp; my $max=$ENV{PMAX}; my $w=0; my $out="";
+      for my $c (split //) {
+        my $cw = ($c =~ /[\x{1100}-\x{11FF}\x{2E80}-\x{9FFF}\x{AC00}-\x{D7A3}\x{F900}-\x{FAFF}\x{FF00}-\x{FF60}\x{3000}-\x{303F}]/) ? 2 : 1;
+        last if $w + $cw > $max; $out .= $c; $w += $cw;
+      }
+      $out .= "\x{2026}" if length($out) < length($_);
+      print $out;')
+  fi
+fi
+l2="${C_TIME}٩( ᐛ )و  ${now_t}${R}"
+[ -n "$last_prompt" ] && l2+=" ${C_PROMPT}${last_prompt}${R}"
+
+# ================= LINE 3: cwd (~ 축약) =================
+disp_cwd="${cwd/#$HOME/~}"
+l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}${R}"
+
+printf '%s\n' "$l2"
+printf '%s\n' "$l1"
+printf '%s\n' "$l3"
