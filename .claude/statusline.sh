@@ -60,10 +60,30 @@ fmt_tok() {
   elif [ "$n" -ge 1000 ]; then printf "%dk" "$((n/1000))"
   else printf "%d" "$n"; fi
 }
-reltime() {
-  local now d h m; now=$(date +%s); d=$(( $1 - now )); [ "$d" -lt 0 ] && d=0
-  h=$((d/3600)); m=$(((d%3600)/60))
-  if [ "$h" -gt 0 ]; then echo "${h}h ${m}m"; else echo "${m}m"; fi
+# 갱신까지 남은 초 (epoch 우선, ISO 8601 대비)
+_secs_left() {
+  local now target raw="$1"; now=$(date +%s)
+  if [[ "$raw" =~ ^[0-9]+$ ]]; then target=$raw
+  else
+    target=$(date -j -u -f "%Y-%m-%dT%H:%M:%S" "$(echo "$raw" | sed -E 's/[.+Z].*$//')" +%s 2>/dev/null)
+    [ -z "$target" ] && target=$now
+  fi
+  local d=$(( target - now )); [ "$d" -lt 0 ] && d=0; echo "$d"
+}
+# 5h 세션: "N시간M분" (0 단위 생략)
+reltime_hm() {
+  local d h m; d=$(_secs_left "$1"); h=$((d/3600)); m=$(((d%3600)/60))
+  if   [ "$h" -gt 0 ] && [ "$m" -gt 0 ]; then echo "${h}시간${m}분"
+  elif [ "$h" -gt 0 ]; then echo "${h}시간"
+  else echo "${m}분"; fi
+}
+# 7d 주간: "N일 M시간" (0 단위 생략, 1시간 미만이면 분)
+reltime_dh() {
+  local d dd h m; d=$(_secs_left "$1"); dd=$((d/86400)); h=$(((d%86400)/3600)); m=$(((d%3600)/60))
+  if   [ "$dd" -gt 0 ] && [ "$h" -gt 0 ]; then echo "${dd}일 ${h}시간"
+  elif [ "$dd" -gt 0 ]; then echo "${dd}일"
+  elif [ "$h" -gt 0 ]; then echo "${h}시간"
+  else echo "${m}분"; fi
 }
 
 # ================= 모델 표기 (LINE 2에 포함) + branch 감지 =================
@@ -140,7 +160,9 @@ if [ "$context_size" -gt 0 ]; then
 
   # 터미널 폭에 맞춰 셀 개수 산정(얼굴/여백 ≈ 16칸 제외), 20~46칸으로 클램프
   ctx_cols=${COLUMNS:-120}
-  bar_w=$(( ctx_cols - 16 ))
+  # 5h/7d 남은시간+사용량을 뒤에 붙일 경우 폭 확보(약 44칸)
+  rl_reserve=0; { [ -n "$fh_reset" ] || [ -n "$sd_reset" ]; } && rl_reserve=44
+  bar_w=$(( ctx_cols - 16 - rl_reserve ))
   [ "$bar_w" -lt 20 ] && bar_w=20
   [ "$bar_w" -gt 46 ] && bar_w=46
 
@@ -169,6 +191,19 @@ if [ "$context_size" -gt 0 ]; then
   done
 
   lctx="${C_TOK}(ง˙∇˙)ว  ${R}${bar} ${ctx_col}${C_BOLD}${ctx_pct}%${R}"
+  # 세션(5h)·주간(7d) 리셋까지 남은시간 + 사용량(NN%) — 퍼센트 뒤에 옅게 표기
+  rl=""
+  if [ -n "$fh_reset" ]; then
+    rl+="${C_LABEL}5h ${C_PROMPT}$(reltime_hm "$fh_reset")"
+    [ -n "$fh_pct" ] && rl+="${C_LABEL}($(printf '%.0f' "$fh_pct")%)"
+    rl+="${R}"
+  fi
+  if [ -n "$sd_reset" ]; then
+    rl+="${rl:+$sep}${C_LABEL}7d ${C_PROMPT}$(reltime_dh "$sd_reset")"
+    [ -n "$sd_pct" ] && rl+="${C_LABEL}($(printf '%.0f' "$sd_pct")%)"
+    rl+="${R}"
+  fi
+  [ -n "$rl" ] && lctx+="${sep}${rl}"
 fi
 
 # ================= LINE 5: cwd(branch) · worktree =================
