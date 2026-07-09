@@ -66,16 +66,16 @@ reltime() {
   if [ "$h" -gt 0 ]; then echo "${h}h ${m}m"; else echo "${m}m"; fi
 }
 
-# ================= LINE 1: model · branch · tokens · 5h · 7d =================
+# ================= 모델 표기 (LINE 2에 포함) + branch 감지 =================
 # context label: display_name에 이미 괄호 표기가 있으면 붙이지 않음(중복 방지)
 if [[ "$model_name" == *"("* ]]; then ctx=""
 elif [ "$context_size" -ge 1000000 ]; then ctx="1M"
 elif [ "$context_size" -ge 1000 ]; then ctx="$((context_size/1000))K"
 else ctx=""; fi
 
-l1="${C_MODEL}٩(•◡•)۶  ${model_name}"
-[ -n "$ctx" ] && l1+=" (${ctx})"
-l1+="${R}"
+model_disp="${C_MODEL}${model_name}"
+[ -n "$ctx" ] && model_disp+=" (${ctx})"
+model_disp+="${R}"
 
 # branch (★ if uncommitted changes)
 if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
@@ -87,22 +87,6 @@ if git -C "$cwd" rev-parse --git-dir > /dev/null 2>&1; then
       star="★"
     fi
   fi
-fi
-
-# tokens used / context size
-if [ "$context_size" -gt 0 ]; then
-  used=$((total_input + total_output))
-  l1+="${sep}${C_TOK}$(fmt_tok "$used")/$(fmt_tok "$context_size")${R}"
-fi
-
-# 5h / 7d rate limits (사용률 색상 적용)
-if [ -n "$fh_pct" ]; then
-  fh_r=""; [ -n "$fh_reset" ] && fh_r=" ($(reltime "$fh_reset"))"
-  l1+="${sep}$(rate_color "$fh_pct")5h $(printf '%.0f' "$fh_pct")%${fh_r}${R}"
-fi
-if [ -n "$sd_pct" ]; then
-  sd_r=""; [ -n "$sd_reset" ] && sd_r=" ($(reltime "$sd_reset"))"
-  l1+="${sep}$(rate_color "$sd_pct")7d $(printf '%.0f' "$sd_pct")%${sd_r}${R}"
 fi
 
 # ================= LINE 2: time + last prompt =================
@@ -135,9 +119,9 @@ fi
 l2="${C_TIME}٩( ᐛ )و  ${now_t}${R}"
 [ -n "$last_prompt" ] && l2+=" ${C_PROMPT}${last_prompt}${R}"
 
-# ================= LINE 3: effort · thinking · version =================
+# ================= LINE 2: model · effort · thinking · version =================
 leff="${C_STATUS}( ◡̀_◡́)ᕤ  ${R}"
-ef_body=""
+ef_body="${model_disp}"
 [ -n "$effort_level" ] && ef_body+="${ef_body:+$sep}${C_LABEL}effort ${C_PROMPT}${effort_level}${R}"
 if [ -n "$thinking_on" ]; then
   if [ "$thinking_on" = "true" ]; then th="on"; tc="$C_BRANCH"; else th="off"; tc="$C_OFF"; fi
@@ -146,7 +130,48 @@ fi
 [ -n "$cc_version" ] && ef_body+="${ef_body:+$sep}${C_LABEL}v${cc_version}${R}"
 leff+="$ef_body"
 
-# ================= LINE 4: cwd(branch) · worktree =================
+# ================= LINE 4: context gauge (원통 셀) =================
+# 전 구간 동일 글리프 ⛁. 사용분=밝은 색(사용률), 여유분=옅은 회색.
+# 색만으로 임계 표시: 초록(<50) · 앰버(50~80) · 빨강(80+).
+lctx=""
+if [ "$context_size" -gt 0 ]; then
+  ctx_used=$((total_input + total_output))
+  ctx_pct=$(( ctx_used * 100 / context_size )); [ "$ctx_pct" -gt 100 ] && ctx_pct=100
+
+  # 터미널 폭에 맞춰 셀 개수 산정(얼굴/여백 ≈ 16칸 제외), 20~46칸으로 클램프
+  ctx_cols=${COLUMNS:-120}
+  bar_w=$(( ctx_cols - 16 ))
+  [ "$bar_w" -lt 20 ] && bar_w=20
+  [ "$bar_w" -gt 46 ] && bar_w=46
+
+  filled=$(( ctx_pct * bar_w / 100 ))
+  [ "$ctx_pct" -gt 0 ] && [ "$filled" -lt 1 ] && filled=1
+  # Dracula 팔레트 (게이지 전용 · 5h/7d 색은 rate_color 그대로)
+  G_LOW=$'\e[0;38;2;80;250;123m'     # green  #50fa7b
+  G_MID=$'\e[0;38;2;255;184;108m'    # amber  #ffb86c
+  G_HI=$'\e[0;38;2;255;85;85m'       # red    #ff5555
+  C_CTX_DIM=$'\e[0;38;2;78;70;62m'   # 여유 셀(옅은 회색)
+  C_BOLD=$'\e[1m'                    # 퍼센트 볼드
+  if   [ "$ctx_pct" -ge 80 ]; then ctx_col=$G_HI
+  elif [ "$ctx_pct" -ge 50 ]; then ctx_col=$G_MID
+  else                             ctx_col=$G_LOW; fi
+  mc_amber=$G_MID                    # 40% 기준점
+  mc_red=$G_HI                       # 75% 기준점
+  m40=$(( 40 * bar_w / 100 ))
+  m75=$(( 75 * bar_w / 100 ))
+
+  bar=""
+  for ((i=0; i<bar_w; i++)); do
+    if   [ "$i" -lt "$filled" ]; then bar+="${ctx_col}${C_BOLD}⛁${R}"       # 사용분(밝게)
+    elif [ "$i" -eq "$m40" ];   then bar+="${mc_amber}${C_BOLD}⛁${R}"      # 40% 기준점
+    elif [ "$i" -eq "$m75" ];   then bar+="${mc_red}${C_BOLD}⛁${R}"        # 75% 기준점
+    else                              bar+="${C_CTX_DIM}${C_BOLD}⛁${R}"; fi  # 여유(옅게)
+  done
+
+  lctx="${C_TOK}(ง˙∇˙)ว  ${R}${bar} ${ctx_col}${C_BOLD}${ctx_pct}%${R}"
+fi
+
+# ================= LINE 5: cwd(branch) · worktree =================
 disp_cwd="${cwd/#$HOME/~}"
 l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}"
 [ -n "$branch" ] && l3+="(${branch}${star})"
@@ -154,6 +179,6 @@ l3+="${R}"
 [ -n "$git_worktree" ] && l3+="${sep}${C_PATH}${git_worktree}${R}"
 
 printf '%s\n' "$l2"
-printf '%s\n' "$l1"
 printf '%s\n' "$leff"
+[ -n "$lctx" ] && printf '%s\n' "$lctx"
 printf '%s\n' "$l3"
