@@ -123,9 +123,9 @@ if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
     | grep -vE '^(<|\[|/|Caveat:)' \
     | head -1 | tr '\n' ' ' | sed 's/  */ /g' | sed 's/^ *//;s/ *$//')
   if command -v perl > /dev/null 2>&1 && [ -n "$last_prompt" ]; then
-    # 터미널 폭에 맞춰 표시폭(칸) 기준으로 자름. 앞 이모티콘+시각(약 18칸) 제외.
+    # 터미널 폭에 맞춰 표시폭(칸) 기준으로 자름. 앞 앵커(⌦ )+시각(약 9칸) 제외.
     cols=${COLUMNS:-120}
-    pmax=$(( cols - 18 )); [ "$pmax" -lt 30 ] && pmax=30
+    pmax=$(( cols - 9 )); [ "$pmax" -lt 30 ] && pmax=30
     last_prompt=$(printf '%s' "$last_prompt" | PMAX=$pmax perl -CSD -ne '
       chomp; my $max=$ENV{PMAX}; my $w=0; my $out="";
       for my $c (split //) {
@@ -136,11 +136,11 @@ if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
       print $out;')
   fi
 fi
-l2="${C_TIME}٩( ᐛ )و  ${now_t}${R}"
+l2="${C_TIME}⌦ ${now_t}${R}"
 [ -n "$last_prompt" ] && l2+=" ${C_PROMPT}${last_prompt}${R}"
 
 # ================= LINE 2: model · effort · thinking · version =================
-leff="${C_STATUS}( ◡̀_◡́)ᕤ  ${R}"
+leff="${C_STATUS}⌦ ${R}"
 ef_body="${model_disp}"
 [ -n "$effort_level" ] && ef_body+="${ef_body:+$sep}${C_LABEL}effort ${C_PROMPT}${effort_level}${R}"
 if [ -n "$thinking_on" ]; then
@@ -158,11 +158,11 @@ if [ "$context_size" -gt 0 ]; then
   ctx_used=$((total_input + total_output))
   ctx_pct=$(( ctx_used * 100 / context_size )); [ "$ctx_pct" -gt 100 ] && ctx_pct=100
 
-  # 터미널 폭에 맞춰 셀 개수 산정(얼굴/여백 ≈ 16칸 제외), 20~46칸으로 클램프
+  # 터미널 폭에 맞춰 셀 개수 산정(앵커/여백 ≈ 9칸 제외), 20~46칸으로 클램프
   ctx_cols=${COLUMNS:-120}
   # 5h/7d 남은시간+사용량을 뒤에 붙일 경우 폭 확보(약 44칸)
   rl_reserve=0; { [ -n "$fh_reset" ] || [ -n "$sd_reset" ]; } && rl_reserve=44
-  bar_w=$(( ctx_cols - 16 - rl_reserve ))
+  bar_w=$(( ctx_cols - 9 - rl_reserve ))
   [ "$bar_w" -lt 20 ] && bar_w=20
   [ "$bar_w" -gt 46 ] && bar_w=46
 
@@ -190,7 +190,7 @@ if [ "$context_size" -gt 0 ]; then
     else                              bar+="${C_CTX_DIM}${C_BOLD}⛁${R}"; fi  # 여유(옅게)
   done
 
-  lctx="${C_TOK}(ง˙∇˙)ว  ${R}${bar} ${ctx_col}${C_BOLD}${ctx_pct}%${R}"
+  lctx="${C_TOK}⌦ ${R}${bar} ${ctx_col}${C_BOLD}${ctx_pct}%${R}"
   # 세션(5h)·주간(7d) 리셋까지 남은시간 + 사용량(NN%) — 퍼센트 뒤에 옅게 표기
   rl=""
   if [ -n "$fh_reset" ]; then
@@ -208,7 +208,7 @@ fi
 
 # ================= LINE 5: cwd(branch) · worktree =================
 disp_cwd="${cwd/#$HOME/~}"
-l3="${C_PATH}ᕕ( ᐛ )ᕗ  ${disp_cwd}"
+l3="${C_PATH}⌦ ${disp_cwd}"
 [ -n "$branch" ] && l3+="(${branch}${star})"
 l3+="${R}"
 [ -n "$git_worktree" ] && l3+="${sep}${C_PATH}${git_worktree}${R}"
