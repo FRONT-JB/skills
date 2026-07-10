@@ -152,7 +152,7 @@ leff+="$ef_body"
 
 # ================= LINE 4: context gauge (원통 셀) =================
 # 전 구간 동일 글리프 ⛁. 사용분=밝은 색(사용률), 여유분=옅은 회색.
-# 색만으로 임계 표시: 초록(<50) · 앰버(50~80) · 빨강(80+).
+# 색만으로 임계 표시: 초록(<40) · 앰버(40~75) · 빨강(75+). 기준점 마커(40/75)와 동일.
 lctx=""
 if [ "$context_size" -gt 0 ]; then
   ctx_used=$((total_input + total_output))
@@ -174,8 +174,8 @@ if [ "$context_size" -gt 0 ]; then
   G_HI=$'\e[0;38;2;255;85;85m'       # red    #ff5555
   C_CTX_DIM=$'\e[0;38;2;78;70;62m'   # 여유 셀(옅은 회색)
   C_BOLD=$'\e[1m'                    # 퍼센트 볼드
-  if   [ "$ctx_pct" -ge 80 ]; then ctx_col=$G_HI
-  elif [ "$ctx_pct" -ge 50 ]; then ctx_col=$G_MID
+  if   [ "$ctx_pct" -ge 75 ]; then ctx_col=$G_HI
+  elif [ "$ctx_pct" -ge 40 ]; then ctx_col=$G_MID
   else                             ctx_col=$G_LOW; fi
   mc_amber=$G_MID                    # 40% 기준점
   mc_red=$G_HI                       # 75% 기준점
