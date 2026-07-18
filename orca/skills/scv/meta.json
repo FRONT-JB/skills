@@ -1,0 +1,129 @@
+{
+  "modeName": "scv",
+  "displayName": "scv",
+  "packVersion": "1.2.0",
+  "coordination": "supervised",
+  "coordinator": {
+    "agent": "grok"
+  },
+  "maxConcurrent": 2,
+  "worktreePolicy": "active",
+  "waitTimeoutMs": 900000,
+  "implementSoftBudgetMs": 1800000,
+  "hangRetryMaxPerRole": 1,
+  "taskTitlePrefix": "[scv:$RUN_ID]",
+  "stateRoot": ".scv/state/$RUN_ID/",
+  "planPathPattern": "docs/plans/YYYY-MM-DD_<slug>.plan.md",
+  "templatesDir": "$HOME/.orca/scv/templates/",
+  "defaultDocsLanguage": "ko",
+  "audit": {
+    "requiredAttempt": true,
+    "shipStatusOrthogonal": true,
+    "focus": [
+      "time",
+      "stability"
+    ],
+    "forbidEvolution": true,
+    "noDedicatedMetaWorkers": true,
+    "reviewsPerAgent": 1,
+    "pingPong": false,
+    "stateDir": ".scv/state/$RUN_ID/audit/"
+  },
+  "reclaim": {
+    "order": "after-audit-before-close",
+    "pipeline": "AUDIT → RECLAIM → CLOSING → FINAL",
+    "allowOnlyCreatedByRun": true,
+    "forbidResetAll": true,
+    "skipDestructiveOnBlocked": true
+  },
+  "intake": {
+    "mode": "prompt-first",
+    "forbidPrematureOptionMenu": true,
+    "runIdAfterNonEmptySeed": true
+  },
+  "finalSections": [
+    "요약",
+    "단계별 결과",
+    "결정 로그",
+    "변경 파일",
+    "품질 게이트",
+    "Git/릴리스 상태",
+    "Docs updated",
+    "위험 및 다음 단계"
+  ],
+  "triggers": [
+    "scv",
+    "/scv",
+    "scv-harness"
+  ],
+  "workers": [
+    {
+      "role": "init",
+      "agent": "grok",
+      "command": "grok -m grok-4.5 --reasoning-effort high",
+      "ownership": "edit"
+    },
+    {
+      "role": "plan",
+      "agent": "claude",
+      "command": "claude --model opus --dangerously-skip-permissions",
+      "ownership": "edit"
+    },
+    {
+      "role": "plan-review",
+      "agent": "codex",
+      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"high\" -a never -s danger-full-access",
+      "ownership": "review-only"
+    },
+    {
+      "role": "implement",
+      "agent": "codex",
+      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"xhigh\" -a never -s danger-full-access",
+      "ownership": "edit"
+    },
+    {
+      "role": "code-review",
+      "agent": "claude",
+      "command": "claude --model opus --dangerously-skip-permissions",
+      "ownership": "review-only"
+    },
+    {
+      "role": "review-fix",
+      "agent": "codex",
+      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"high\" -a never -s danger-full-access",
+      "ownership": "edit"
+    },
+    {
+      "role": "release",
+      "agent": "grok",
+      "command": "grok -m grok-4.5 --reasoning-effort high",
+      "ownership": "edit"
+    }
+  ],
+  "crossReview": {
+    "plan": {
+      "write": "claude/plan",
+      "review": "codex/plan-review"
+    },
+    "code": {
+      "write": "codex/implement",
+      "review": "claude/code-review",
+      "fix": "codex/review-fix"
+    }
+  },
+  "notes": {
+    "claudeModels": "plan and code-review use opus + --dangerously-skip-permissions (verified alias pattern). Do not invent full model ids after hang.",
+    "codexFlags": "Orca terminal workers: always -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec (non-interactive): do NOT pass -a; use -s danger-full-access --dangerously-bypass-approvals-and-sandbox.",
+    "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
+    "sourcePack": "$HOME/Desktop/orchestration/scv-orchestration-pack.md",
+    "userFacingLanguage": "Korean for progress/questions/FINAL; English tokens OK for roles/paths/ids/CLI",
+    "docsLanguage": "Default ko for committed docs prose. Resolve: user directive > .orca/scv.md docsLanguage > meta defaultDocsLanguage. Inject resolved directive into worker specs; do not hardcode Korean when override is en.",
+    "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe. Unresolved decision_gate must not be dropped.",
+    "scopeExpansion": "Leave approved scope manifest → stop. In-run expand: user approve + plan patch + Codex plan-review re-pass + re-freeze. No skip. Baseline lint FAIL unrelated to docs-only: record only, do not auto-expand.",
+    "taskCreateCli": "orca orchestration task-create --task-title ... --spec ... (not --title)",
+    "intake": "Prompt-first: consume user message as seed; no premature estimated option menu. Bare /scv → free-text once. RUN_ID only after non-empty seed.",
+    "audit": "Post-release audit: time/stability only, keep pipeline ops. No evolution redesign. No dedicated meta workers—reuse idle Claude/Codex handles with new task ids. Each agent 1 review, no ping-pong. Ship status orthogonal to auditStatus. Artifacts under .scv/state/$RUN_ID/audit/ (gitignore).",
+    "reclaim": "After audit, before close: reclaim only createdByRun exact handles + orphan waiters. Never reset --all, never fuzzy match, keep coordinator tab and borrowed handles. BLOCKED: skip destructive reclaim by default.",
+    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain unread if UI stacks; heartbeat≠completion; timeout=soft recheck"
+  }
+}
