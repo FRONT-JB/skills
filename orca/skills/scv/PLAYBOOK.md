@@ -11,7 +11,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion`
+- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.0** — coordination hygiene: wait NDJSON parse · dispatchId straggler drop · Codex stuck recovery · terminal idempotent · recovery SSOT)
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -150,7 +150,7 @@ orca orchestration task-create \
 **주의:** 플래그는 `--task-title` (not `--title`). `--spec` 필수.  
 **이번 런 task-create id만 dispatch.** 제목 퍼지 매칭 금지.
 
-### 2) 터미널 레이아웃 — **split pane 우선**
+### 2) 터미널 레이아웃 — **split pane 우선** · **idempotent create**
 
 | 순서 | 동작 |
 |------|------|
@@ -160,6 +160,8 @@ orca orchestration task-create \
 
 - direction: 기본 `vertical` · 리뷰 쌍 `horizontal`
 - **핑퐁 세션 재사용:** 역할당 handle 1개. round 2+ = **같은 handle 재dispatch**. 라운드마다 새 세션 금지.
+- **Idempotent create (필수):** 동일 `(title, role)` 이 **alive** 이면 재사용. dead 슬롯만 교체 생성. create 직후 `terminal list/show` 로 live handle **1개** 확정 후 그 handle 만 dispatch/read/message routing. dead pane 은 completion authority 금지.
+- 중복 first-create 금지 (이중 탭 create 후 하나만 쓰기 금지 — 즉시 하나로 합치거나 dead 마킹).
 
 ### 3) dispatch · wait (단일 소유자)
 
@@ -190,12 +192,50 @@ orca orchestration check --wait \
 | post-inject | 45–90s liveness (도구/프리뷰 성장). spinner-only 면 hung recovery |
 | 사용자 안내 | 한글 한 줄: `【scv · 대기】 plan 워커 작업 중 (heartbeat≠완료). worker_done 대기.` |
 
-선택 상태 필드(권장): `activeWaitOwner`, `expectedTaskIds`, `waitGeneration`, `lastConsumedMsgId`.
+선택 상태 필드(권장): `activeWaitOwner`, `expectedTaskIds`, `waitGeneration`, `lastConsumedMsgId`, **`completedTaskIds[]`**, **`activeDispatchId`**, **`phaseEnteredAt`**.
 
-**안티패턴 (메일 스택)**
+**`check --wait` 출력 파싱 (필수 · NDJSON)**
+
+`check --wait --json` 은 완료 JSON **한 덩어리**가 아니라, 대기 중 **`_keepalive` / `_heartbeat` NDJSON 줄**이 섞여 나올 수 있다. 전체를 한 번에 `json.loads` 하면 `Extra data` 로 깨진다.
+
+| 규칙 | 내용 |
+|------|------|
+| line-wise | stdout 을 **줄 단위**로 분리해 각 줄을 독립 `json.loads` |
+| skip | `_keepalive` · `_heartbeat` · 빈 줄 · 파싱 실패 줄은 **lifecycle 판정에서 제외** |
+| 완료 객체 | 마지막 유효 JSON 객체(또는 `result.messages` 보유 객체)만 사용 |
+| 파서 오류 | task/worker 상태를 바꾸지 않음 · task-list + terminal show 로 soft recheck |
+
+**Straggler / late lifecycle (필수)**
+
+| 규칙 | 내용 |
+|------|------|
+| authority | 수락 조건: payload `taskId` ∈ this-run **and** (`dispatchId` == 현재 active **or** task 가 아직 dispatched) |
+| drop | completed taskId · 이전 retry dispatchId · 다른 런 id → **silent drop** (로그 1줄, 사용자 반복 고지 0) |
+| closed 후 | late heartbeat/worker_done → silent dedupe · FINAL 이후 잔여 메일 반복 고지 **금지** |
+| decision_gate | 미해결 human gate 는 drop 금지 |
+
+**Post-inject liveness + hung recovery (필수)**
+
+`tui-idle` + `injected: true` 만으로 “작업 중” 금지.
+
+1. inject 후 **45–90s** wall-time 후 `terminal show|read`.
+2. **Healthy:** tool call · 파일 경로 · 비자명 preview 성장 · 유효 heartbeat.
+3. **Unhealthy (즉시 hung 후보):** shell 프롬프트만 (`❯` 단독) · “Update ran successfully / restart” · MCP/launch 줄만 · spinner-only ≥90s · **Ready 인데 도구/산출 0**.
+4. **Active-dispatch stuck (별 신호):** `dispatch-show` 가 active 인데 터미널이 비생산 → **같은 pane re-inject 집착 금지**.  
+   - `task-update --status ready`  
+   - 가능하면 이전 dispatch 를 소진/무효화한 뒤  
+   - **fresh terminal** + **새 dispatch** (frozen pane 에 재inject 하지 않음)  
+   - role×task hang recovery **max 1** 후 decision_gate 또는 coordinator-exception
+5. **Codex 특이:** 자가 업데이트 UI / full-access Ready 공회전은 hang 과 동일 취급. update 프롬프트가 보이면 그 세션에 task inject 금지 — 새 세션.
+6. **Recovery SSOT:** coordinator partial edit 또는 resume 시 task spec 에 **현재 uncommitted 경로 목록 + “이 트리가 SSOT”** 를 명시. **단일 edit owner** 만 허용 (이중 편집 금지).
+
+**안티패턴 (메일 스택 · 대기)**
 
 - wait 루프 2개 이상
 - `--types` 에 heartbeat 포함
+- NDJSON 전체를 단일 `json.loads`
+- completed/stale `dispatchId` 메일을 현재 완료로 처리
+- active-dispatch stuck 에 같은 pane re-inject 반복
 - 라운드마다 새 세션 create → inject 폭증
 - worker_done 을 읽지 않고 “메시지 있음” 만 반복 표시
 - 미소비 메일 N건을 한 화면에 쌓아 두고 파이프라인 정지
@@ -420,7 +460,8 @@ docs/
 ### .scv/state/$RUN_ID/
 
 ```text
-run.json          # phase, closed, resolvedDocsLanguage, status, auditStatus, reclaimStatus, terminals[]
+run.json          # phase, closed, resolvedDocsLanguage, status, auditStatus, reclaimStatus,
+                  # terminals[], completedTaskIds[], activeDispatchId, phaseEnteredAt (권장)
 brief/plan-brief.md
 plan-review/codex.md
 plan-refine/decisions.md
@@ -435,6 +476,8 @@ audit/
   improvements.md
   reclaim-log.md
 ```
+
+**phase 시각 (권장 · audit 정량화):** `run.json` 에 `phaseEnteredAt` / phase 전환 시 wall-clock 기록. inventory 에 대략 timeline 만 있어도 되지만, 다음 런 비교를 위해 타임스탬프를 남긴다.
 
 ## 성공 상태
 
@@ -511,11 +554,15 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 - plan-review skip / 재승인만으로 기술 리뷰 우회
 - 병렬 `check --wait` · waiter 복구 시 worker/task kill
 - wait `--types` 에 `heartbeat`/`status` 포함 (메일 스택·완료 오인)
+- `check --wait` NDJSON 을 단일 `json.loads` 로 파싱 (keepalive Extra data)
 - Orchestration Messages 미소비 스택 방치 · 같은 메일 반복 낭독하며 정지
 - heartbeat 를 worker_done 처럼 취급
+- completed/stale dispatchId 의 late worker_done 으로 파이프라인 재오픈
 - closed 런의 **미해결** decision_gate 무시
 - FINAL 후 late mail 반복 고지
-- 워커마다 새 탭 create · 핑퐁마다 새 세션
+- 워커마다 새 탭 create · 핑퐁마다 새 세션 · 동일 role 중복 create
+- Codex update/shell/Ready 공회전에 같은 pane re-inject 반복
+- recovery 시 coordinator + worker **이중 편집** (SSOT uncommitted 목록 없이)
 - Hangul 비율만으로 문서 언어 gate 확정
 - `READY_TO_PUSH`를 gate 실패 수용 상태로 오용
 - `codex exec`에 인터랙티브 `-a never` 사용

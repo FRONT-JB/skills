@@ -10,6 +10,11 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - Late `worker_done` on already-completed tasks: ignore (silent dedupe after close).
 - Exactly one `check --wait` owner loop. Recovering a backgrounded waiter kills **waiter only**, never worker/task.
 - Wait types: `worker_done,escalation,decision_gate` only — **never** `heartbeat`/`status` in `--types`. Consume one message then act; drain unread if UI stacks. Heartbeat ≠ completion.
+- **NDJSON wait parse:** line-wise JSON; skip `_keepalive`/`_heartbeat`; never `json.loads` whole stream.
+- **Straggler filter:** accept lifecycle only for this-run taskId + active (or still-dispatched) dispatchId; drop stale/completed.
+- **Post-inject liveness 45–90s mandatory.** Shell / update-success / Ready-no-tools = hung. Do **not** re-inject into active-dispatch-stuck pane — fresh terminal + new dispatch.
+- **Terminal create idempotent:** reuse alive (title,role); one live handle per role after create.
+- **Recovery SSOT:** uncommitted paths listed in resume task spec; single edit owner.
 - Never stage or commit `.scv/**`.
 - Gate invent forbidden; cmds frozen at plan approval (with scope manifest).
 - P0 never becomes success; SUCCESS_WITH_ACCEPTED_RISK requires **human** decision_gate only.
@@ -35,5 +40,6 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - 2026-07-18 — `task-create --title` invalid → `--task-title`.
 - 2026-07-18 — `codex exec … -a never` fails; interactive meta keeps `-a never`; exec uses `--dangerously-bypass-approvals-and-sandbox` without `-a`.
 - 2026-07-18 — **Post-run audit + reclaim:** after release, inventory + Claude/Codex (1 each) write time/stability improvements under `.scv/state/$RUN_ID/audit/`; then reclaim createdByRun terminals; then close + FINAL. Audit is **not** pack evolution. Order: AUDIT → RECLAIM → CLOSING → FINAL.
+- 2026-07-18/19 — **login-persist run audit (pack 1.3.0):** (1) `check --wait` NDJSON keepalive broke whole-buffer `json.loads` — **line-wise parse + skip `_keepalive`**. (2) Dual wait loops stole completions — **one wait owner; kill waiter only**. (3) Heartbeat stacked in UI and confused operators — wait types never include heartbeat; **unread drain**. (4) Codex self-update → shell; re-inject hit **active-dispatch stuck Ready** — post-inject 45–90s liveness; **no re-inject into stuck pane**; fresh terminal + new dispatch; treat update/shell/Ready-no-tools as hung. (5) Late worker_done/heartbeat after completed tasks — **dispatchId + completedTaskIds straggler drop**; no re-open; no spam after FINAL. (6) Duplicate plan terminals + dead pane recreate — **idempotent create**; one live handle. (7) Coordinator partial implement + resume dual ownership — resume task must list **uncommitted SSOT paths**; single edit owner. (8) Prefer `phaseEnteredAt` in run.json for next-run audit timing.
 
 <!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->

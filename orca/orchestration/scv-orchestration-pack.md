@@ -3,18 +3,21 @@
 > Orca 조율 스튜디오에서 **이 사용자가 만든** 설정입니다.
 > 원클릭 설치 파일이 아닙니다. 아래를 **이 컴퓨터**의 `$HOME/.orca/scv/` 에 저장하세요.
 >
-> **버전:** 2026-07-18 v6.0 (packVersion 1.2.0)  
-> **변경 요약:** prompt-first intake · post-run AUDIT(time/stability only) · RECLAIM · 종료 순서 AUDIT→RECLAIM→CLOSING→FINAL
+> **버전:** 2026-07-19 v7.0 (packVersion 1.3.0)  
+> **변경 요약:** coordination hygiene from login-persist audit — wait NDJSON line-wise parse · dispatchId straggler drop · Codex stuck recovery (no re-inject active-dispatch-stuck) · terminal idempotent create · recovery SSOT (single edit owner) · phaseEnteredAt 권장 · LESSONS/PLAYBOOK/SKILL/quick-command 동기
 
 ## 이 팩 요약
 | 항목 | 값 |
 |------|-----|
 | 표시 이름 | scv |
-| packVersion | 1.2.0 |
+| packVersion | 1.3.0 |
 | 팀장 | Grok · supervised |
 | 교차 검증 | plan Claude/Codex · code Codex/Claude |
 | 문서 언어 | 기본 ko (`resolvedDocsLanguage`) |
 | Intake | **prompt-first** (옵션 메뉴 선제 금지) |
+| Wait | single owner · types=worker_done,escalation,decision_gate · **NDJSON line-wise** · straggler drop |
+| Post-inject | 45–90s liveness · Codex update/shell/Ready-no-tools = hung · fresh terminal |
+| Terminal | first create + split+rename · **idempotent** reuse alive (title,role) |
 | 말미 | AUDIT → RECLAIM → CLOSING → FINAL |
 | Audit 초점 | time / stability only · 고도화 금지 · meta worker 추가 없음 |
 | 상태 루트 | `.scv/state/$RUN_ID/` (gitignore) |
@@ -28,22 +31,34 @@ preflight → seed/interview → plan… → release
   → CLOSING → FINAL
 ```
 
+### 1.3.0 coordination hygiene (필수 습관)
+
+1. `check --wait` stdout: **줄 단위 JSON** · skip `_keepalive`/`_heartbeat`
+2. wait types 에 heartbeat 금지 · UI 스택 시 `check --unread` drain
+3. 전역 wait 루프 **1개** · 중복 waiter shell 만 kill
+4. late `worker_done`/heartbeat: completedTaskIds + dispatchId 불일치면 silent drop
+5. inject 후 45–90s liveness 실패 → **같은 pane re-inject 금지** · ready + fresh terminal + new dispatch
+6. recovery/resume task spec 에 uncommitted SSOT 경로 · 단일 edit owner
+7. 터미널 create idempotent · dead pane completion authority 금지
+
 ---
 
 ## 설치 순서
 
 1. `mkdir -p "$HOME/.orca/scv/prompts" "$HOME/.orca/scv/templates"`
-2. PLAYBOOK / meta / LESSONS / quick-command / templates 저장
+2. PLAYBOOK / meta / LESSONS / quick-command(×2 identical) / templates 저장
 3. `$HOME/.grok/skills/scv/SKILL.md` 동기
-4. Orca Quick Command = quick-command 전체 · Orchestration ON
+4. `scv-selfcheck.sh` → PASS
+5. Orca Quick Command = quick-command 전체 · Orchestration ON  
+   (Orca 실행 중이면 sync 후 완전 종료→재실행 권장 — in-memory overwrite 주의)
 
 ### AI에게 통째로 맡기기
 ````
-scv 모드 packVersion 1.2.0 를 $HOME/.orca/scv/ 에 설치/갱신해 줘. 아래 파일만 사용.
+scv 모드 packVersion 1.3.0 를 $HOME/.orca/scv/ 에 설치/갱신해 줘. 아래 파일만 사용.
 
 ### quick-command.txt
 ```
-scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/scv/meta.json, $HOME/.orca/scv/LESSONS.md, and the orchestration skill. If this project has .orca/scv.md or .orca/PLAYBOOK.md, also follow it as project overlay. You are Grok coordinator: supervised feature-shipping DAG (prompt-first interview → Claude plan → Codex plan-review ↔ Claude fix → implement batches → gate → Claude code-review ↔ Codex fix → release → post-run AUDIT (time/stability only, keep ops) → RECLAIM this-run workers → FINAL). Coordination=supervised: inject lifecycle; single check --wait owner; types=worker_done,escalation,decision_gate only (never heartbeat in --types); consume one orchestration message then act; drain unread if messages stack on coordinator; heartbeat≠completion; hang retry max 1 per role; dispatch only this-run task ids. Max concurrent: 2. Workers: grok/init:{grok -m grok-4.5 --reasoning-effort high} ; claude/plan:{claude --model opus --dangerously-skip-permissions} ; codex/plan-review:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; codex/implement:{codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access} ; claude/code-review:{claude --model opus --dangerously-skip-permissions} ; codex/review-fix:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; grok/release:{grok -m grok-4.5 --reasoning-effort high}. Terminal layout REQUIRED: first create then split+rename (no new tab per worker). Prefer horizontal for review pairs. Ping-pong: same handle re-dispatch only. User-facing progress/questions/FINAL in Korean. Docs prose default Korean. Intake: prompt-first; bare trigger → free-text once; RUN_ID after non-empty seed. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Empty Goal is normal — ask once in Korean what to ship, then continue. Goal (optional — from user prompt; ask free-text if missing):
+scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/scv/meta.json, $HOME/.orca/scv/LESSONS.md, and the orchestration skill. If this project has .orca/scv.md or .orca/PLAYBOOK.md, also follow it as project overlay. You are Grok coordinator: supervised feature-shipping DAG (prompt-first interview → Claude plan → Codex plan-review ↔ Claude fix → implement batches → gate → Claude code-review ↔ Codex fix → release → post-run AUDIT (time/stability only, keep ops) → RECLAIM this-run workers → FINAL). Coordination=supervised: inject lifecycle; single check --wait; hang retry max 1 per role; dispatch only this-run task ids. Wait: types=worker_done,escalation,decision_gate only (never heartbeat); consume 1 msg then act; drain unread if UI stacks; heartbeat≠completion; parse check --wait stdout NDJSON line-wise (skip _keepalive); drop late lifecycle unless taskId+dispatchId match active this-run. Post-inject liveness 45–90s mandatory; Codex update/shell/Ready-no-tools = hung — do not re-inject stuck active-dispatch pane; fresh terminal + new dispatch. Terminal: first create then split+rename; idempotent reuse alive (title,role); one live handle per role. Recovery: uncommitted SSOT paths in resume spec; single edit owner. Max concurrent: 2. Workers: grok/init:{grok -m grok-4.5 --reasoning-effort high} ; claude/plan:{claude --model opus --dangerously-skip-permissions} ; codex/plan-review:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; codex/implement:{codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access} ; claude/code-review:{claude --model opus --dangerously-skip-permissions} ; codex/review-fix:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; grok/release:{grok -m grok-4.5 --reasoning-effort high}. Prefer horizontal for review pairs. User-facing Korean. Docs prose default Korean (resolvedDocsLanguage). Intake: consume user prompt first — no premature estimated option menu; bare trigger → free-text once; RUN_ID after non-empty seed. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit under .scv/state/$RUN_ID/audit/ (time|stability only, no evolution, reuse Claude/Codex handles). Reclaim createdByRun only; never reset --all. Goal (optional — from user prompt; ask free-text if missing):
 ```
 
 ### meta.json
@@ -51,7 +66,7 @@ scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/s
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.2.0",
+  "packVersion": "1.3.0",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -60,16 +75,29 @@ scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/s
   "worktreePolicy": "active",
   "waitTimeoutMs": 900000,
   "implementSoftBudgetMs": 1800000,
+  "postInjectLivenessMs": 60000,
   "hangRetryMaxPerRole": 1,
   "taskTitlePrefix": "[scv:$RUN_ID]",
   "stateRoot": ".scv/state/$RUN_ID/",
   "planPathPattern": "docs/plans/YYYY-MM-DD_<slug>.plan.md",
   "templatesDir": "$HOME/.orca/scv/templates/",
   "defaultDocsLanguage": "ko",
+  "wait": {
+    "types": "worker_done,escalation,decision_gate",
+    "forbidHeartbeatInWaitTypes": true,
+    "singleOwner": true,
+    "parseMode": "ndjson-linewise",
+    "skipKeepaliveKeys": ["_keepalive", "_heartbeat"],
+    "stragglerDrop": true,
+    "requireActiveDispatchIdMatch": true
+  },
   "audit": {
     "requiredAttempt": true,
     "shipStatusOrthogonal": true,
-    "focus": ["time", "stability"],
+    "focus": [
+      "time",
+      "stability"
+    ],
     "forbidEvolution": true,
     "noDedicatedMetaWorkers": true,
     "reviewsPerAgent": 1,
@@ -161,18 +189,72 @@ scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/s
   "notes": {
     "claudeModels": "plan and code-review use opus + --dangerously-skip-permissions (verified alias pattern). Do not invent full model ids after hang.",
     "codexFlags": "Orca terminal workers: always -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec (non-interactive): do NOT pass -a; use -s danger-full-access --dangerously-bypass-approvals-and-sandbox.",
+    "codexStuck": "Self-update / shell prompt / Ready with no tools after inject = hung. Do not re-inject into active-dispatch-stuck pane. task-update ready → fresh terminal → new dispatch. Max 1 hang recovery per role×task.",
     "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
     "sourcePack": "$HOME/Desktop/orchestration/scv-orchestration-pack.md",
     "userFacingLanguage": "Korean for progress/questions/FINAL; English tokens OK for roles/paths/ids/CLI",
     "docsLanguage": "Default ko for committed docs prose. Resolve: user directive > .orca/scv.md docsLanguage > meta defaultDocsLanguage. Inject resolved directive into worker specs; do not hardcode Korean when override is en.",
-    "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe. Unresolved decision_gate must not be dropped.",
+    "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe by completedTaskIds+dispatchId. Unresolved decision_gate must not be dropped.",
     "scopeExpansion": "Leave approved scope manifest → stop. In-run expand: user approve + plan patch + Codex plan-review re-pass + re-freeze. No skip. Baseline lint FAIL unrelated to docs-only: record only, do not auto-expand.",
     "taskCreateCli": "orca orchestration task-create --task-title ... --spec ... (not --title)",
     "intake": "Prompt-first: consume user message as seed; no premature estimated option menu. Bare /scv → free-text once. RUN_ID only after non-empty seed.",
     "audit": "Post-release audit: time/stability only, keep pipeline ops. No evolution redesign. No dedicated meta workers—reuse idle Claude/Codex handles with new task ids. Each agent 1 review, no ping-pong. Ship status orthogonal to auditStatus. Artifacts under .scv/state/$RUN_ID/audit/ (gitignore).",
-    "reclaim": "After audit, before close: reclaim only createdByRun exact handles + orphan waiters. Never reset --all, never fuzzy match, keep coordinator tab and borrowed handles. BLOCKED: skip destructive reclaim by default."
+    "reclaim": "After audit, before close: reclaim only createdByRun exact handles + orphan waiters. Never reset --all, never fuzzy match, keep coordinator tab and borrowed handles. BLOCKED: skip destructive reclaim by default.",
+    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain unread if UI stacks; heartbeat≠completion; timeout=soft recheck; parse wait stdout NDJSON line-wise; drop straggler lifecycle for non-active dispatchId",
+    "terminalIdempotent": "first create then split+rename; reuse alive (title,role); one live handle per role; dead pane never completion authority",
+    "recoverySsot": "On implement resume after hang/coordinator-exception: task spec must list uncommitted SSOT paths; single edit owner only",
+    "changelog_1_3_0": "2026-07-19: coordination hygiene from login-persist audit — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended"
   }
 }
+```
+
+### LESSONS.md
+```markdown
+# scv LESSONS
+
+Run-notes for the scv orchestration mode. Read at the start of every run. Append short, dated bullets after hang/recovery or user corrections.
+
+## Hard rules (do not erode)
+
+- Worker commands: exact strings from `meta.json` only — no invented models/flags.
+- Hang recovery: max 1 retry per role × task, then decision_gate.
+- Dispatch only task ids created in **this** run (`task-create` response). No title fuzzy match.
+- Late `worker_done` on already-completed tasks: ignore (silent dedupe after close).
+- Exactly one `check --wait` owner loop. Recovering a backgrounded waiter kills **waiter only**, never worker/task.
+- Wait types: `worker_done,escalation,decision_gate` only — **never** `heartbeat`/`status` in `--types`. Consume one message then act; drain unread if UI stacks. Heartbeat ≠ completion.
+- **NDJSON wait parse:** line-wise JSON; skip `_keepalive`/`_heartbeat`; never `json.loads` whole stream.
+- **Straggler filter:** accept lifecycle only for this-run taskId + active (or still-dispatched) dispatchId; drop stale/completed.
+- **Post-inject liveness 45–90s mandatory.** Shell / update-success / Ready-no-tools = hung. Do **not** re-inject into active-dispatch-stuck pane — fresh terminal + new dispatch.
+- **Terminal create idempotent:** reuse alive (title,role); one live handle per role after create.
+- **Recovery SSOT:** uncommitted paths listed in resume task spec; single edit owner.
+- Never stage or commit `.scv/**`.
+- Gate invent forbidden; cmds frozen at plan approval (with scope manifest).
+- P0 never becomes success; SUCCESS_WITH_ACCEPTED_RISK requires **human** decision_gate only.
+- Plan body change after approve → Codex plan-review again (no user-skip of technical review).
+- Scope expansion → user approve + plan patch + Codex re-review (no “minor skip”).
+- Docs prose language: strong default **ko** (policy P1, not finding-P0). Override via `.orca/scv.md` `docsLanguage`.
+- `task-create` uses `--task-title` + `--spec` (not `--title`).
+- **Intake prompt-first:** consume user seed; no premature option menu; free-text once if empty; RUN_ID after non-empty seed.
+- **Audit:** time/stability only; keep pipeline; no evolution; no dedicated meta workers; ship status orthogonal.
+- **Close order:** AUDIT → RECLAIM → CLOSING → FINAL. Reclaim allowlist only; never `reset --all`.
+
+## Session log
+
+- 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
+- 2026-07-18 — **Intake clarified (prompt-first):** do not lead with estimated multi-option AskUser menu. Prefer user message as seed; if bare `/scv`, one free-text ask. RUN_ID only after non-empty seed (no orphan state).
+- 2026-07-18 — Coordinator progress narrated in English. Fix: user-facing progress/questions/FINAL must be Korean. **Extended:** committed `docs/**` prose defaults to Korean (`resolvedDocsLanguage`); policy P1 not finding-P0.
+- 2026-07-18 — Workers opened as separate tabs. Fix: first create + subsequent `terminal split` + rename.
+- 2026-07-18 — Ping-pong sessions: one handle per role; round 2+ re-dispatch only.
+- 2026-07-18 — docs-only expanded into 16-file lint fix. Fix: baseline vs acceptance; no auto-expand; scope manifest + re-review on expand.
+- 2026-07-18 — Parallel / backgrounded `check --wait`. Fix: single owner; kill **waiter only**.
+- 2026-07-18 — Coordinator froze with stacked Orchestration Messages. Fix: wait types exclude heartbeat; consume 1 msg then act; drain unread; heartbeat≠completion; Korean one-line wait status.
+- 2026-07-18 — Late mail after SUCCESS. Fix: close rules + silent dedupe; never drop unresolved decision_gate.
+- 2026-07-18 — `task-create --title` invalid → `--task-title`.
+- 2026-07-18 — `codex exec … -a never` fails; interactive meta keeps `-a never`; exec uses `--dangerously-bypass-approvals-and-sandbox` without `-a`.
+- 2026-07-18 — **Post-run audit + reclaim:** after release, inventory + Claude/Codex (1 each) write time/stability improvements under `.scv/state/$RUN_ID/audit/`; then reclaim createdByRun terminals; then close + FINAL. Audit is **not** pack evolution. Order: AUDIT → RECLAIM → CLOSING → FINAL.
+- 2026-07-18/19 — **login-persist run audit (pack 1.3.0):** (1) `check --wait` NDJSON keepalive broke whole-buffer `json.loads` — **line-wise parse + skip `_keepalive`**. (2) Dual wait loops stole completions — **one wait owner; kill waiter only**. (3) Heartbeat stacked in UI and confused operators — wait types never include heartbeat; **unread drain**. (4) Codex self-update → shell; re-inject hit **active-dispatch stuck Ready** — post-inject 45–90s liveness; **no re-inject into stuck pane**; fresh terminal + new dispatch; treat update/shell/Ready-no-tools as hung. (5) Late worker_done/heartbeat after completed tasks — **dispatchId + completedTaskIds straggler drop**; no re-open; no spam after FINAL. (6) Duplicate plan terminals + dead pane recreate — **idempotent create**; one live handle. (7) Coordinator partial implement + resume dual ownership — resume task must list **uncommitted SSOT paths**; single edit owner. (8) Prefer `phaseEnteredAt` in run.json for next-run audit timing.
+
+<!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->
 ```
 
 ### PLAYBOOK.md
@@ -190,7 +272,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion`
+- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.0** — coordination hygiene: wait NDJSON parse · dispatchId straggler drop · Codex stuck recovery · terminal idempotent · recovery SSOT)
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -329,7 +411,7 @@ orca orchestration task-create \
 **주의:** 플래그는 `--task-title` (not `--title`). `--spec` 필수.  
 **이번 런 task-create id만 dispatch.** 제목 퍼지 매칭 금지.
 
-### 2) 터미널 레이아웃 — **split pane 우선**
+### 2) 터미널 레이아웃 — **split pane 우선** · **idempotent create**
 
 | 순서 | 동작 |
 |------|------|
@@ -339,26 +421,85 @@ orca orchestration task-create \
 
 - direction: 기본 `vertical` · 리뷰 쌍 `horizontal`
 - **핑퐁 세션 재사용:** 역할당 handle 1개. round 2+ = **같은 handle 재dispatch**. 라운드마다 새 세션 금지.
+- **Idempotent create (필수):** 동일 `(title, role)` 이 **alive** 이면 재사용. dead 슬롯만 교체 생성. create 직후 `terminal list/show` 로 live handle **1개** 확정 후 그 handle 만 dispatch/read/message routing. dead pane 은 completion authority 금지.
+- 중복 first-create 금지 (이중 탭 create 후 하나만 쓰기 금지 — 즉시 하나로 합치거나 dead 마킹).
 
 ### 3) dispatch · wait (단일 소유자)
 
 ```bash
 orca orchestration dispatch --task <task_id> --to <handle> --inject --json
 # 단일 소유자 · 60–90s 롤링 · soft timeout ≠ 하드 abort
-orca orchestration check --wait --types worker_done,escalation,decision_gate --timeout-ms 90000 --json
+# heartbeat 를 --types 에 넣지 말 것 (완료로 오인·메일 스택 유발)
+orca orchestration check --wait \
+  --types worker_done,escalation,decision_gate \
+  --timeout-ms 90000 --json
 ```
 
-**Wait 규칙**
+**Wait · 메일 스택 방지 (필수)**
 
-- 전역 **정확히 하나의** `check --wait` 소유자. 병렬 wait 금지.
-- shell이 background로 넘기면: **waiter 프로세스/세션만** 종료·exit 확인 후 새 wait.  
-  **orchestration task·worker terminal을 kill하지 않는다.**
-- 타임아웃 = 실패 아님 → task-list + terminal show + artifact 경로 확인 후 **중복 dispatch 없이** 재대기.
-- hang: role×task 당 1회 재시도 후 decision_gate.
-- completed task의 late `worker_done` 무시.
-- post-inject 45–90s liveness (도구/프리뷰 성장).
+팀장(scv) 탭에 `Orchestration Messages` 가 **쌓여 멈추는 것**은 정상이 아니다. 아래를 강제한다.
 
-선택 상태 필드(권장): `activeWaitOwner`, `expectedTaskIds`, `waitGeneration`.
+| 규칙 | 내용 |
+|------|------|
+| 단일 wait 소유자 | 전역 **정확히 하나**의 `check --wait` 루프. 병렬 wait·sleep-poll 이중 루프 **금지** |
+| wait 타입 | **`worker_done,escalation,decision_gate` 만**. `heartbeat` / `status` 를 wait 타입에 **넣지 않음** |
+| heartbeat | 살아 있음 표시일 뿐 **완료 아님**. 필요 시 `--peek` 또는 terminal show 로만 확인 |
+| 메시지 소비 | wait/unread 로 **1건 처리 → 다음 행동**. 미소비 메일을 쌓아 두지 않음 |
+| 스택 정리 | UI에 Orchestration Messages 가 쌓이면 `check --unread` 로 비우고 진행. 같은 메일을 반복 낭독하며 정지 금지 |
+| timeout | soft · 실패 아님 → task-list + terminal show + artifact 확인 후 **중복 dispatch 없이** 재대기 |
+| shell background | **waiter 프로세스만** 정리 후 새 wait. **worker terminal / orchestration task kill 금지** |
+| hang | role×task 당 재시도 **1회** 후 decision_gate |
+| late done | completed task 의 late `worker_done` **무시** (재오픈·재대기 금지) |
+| post-inject | 45–90s liveness (도구/프리뷰 성장). spinner-only 면 hung recovery |
+| 사용자 안내 | 한글 한 줄: `【scv · 대기】 plan 워커 작업 중 (heartbeat≠완료). worker_done 대기.` |
+
+선택 상태 필드(권장): `activeWaitOwner`, `expectedTaskIds`, `waitGeneration`, `lastConsumedMsgId`, **`completedTaskIds[]`**, **`activeDispatchId`**, **`phaseEnteredAt`**.
+
+**`check --wait` 출력 파싱 (필수 · NDJSON)**
+
+`check --wait --json` 은 완료 JSON **한 덩어리**가 아니라, 대기 중 **`_keepalive` / `_heartbeat` NDJSON 줄**이 섞여 나올 수 있다. 전체를 한 번에 `json.loads` 하면 `Extra data` 로 깨진다.
+
+| 규칙 | 내용 |
+|------|------|
+| line-wise | stdout 을 **줄 단위**로 분리해 각 줄을 독립 `json.loads` |
+| skip | `_keepalive` · `_heartbeat` · 빈 줄 · 파싱 실패 줄은 **lifecycle 판정에서 제외** |
+| 완료 객체 | 마지막 유효 JSON 객체(또는 `result.messages` 보유 객체)만 사용 |
+| 파서 오류 | task/worker 상태를 바꾸지 않음 · task-list + terminal show 로 soft recheck |
+
+**Straggler / late lifecycle (필수)**
+
+| 규칙 | 내용 |
+|------|------|
+| authority | 수락 조건: payload `taskId` ∈ this-run **and** (`dispatchId` == 현재 active **or** task 가 아직 dispatched) |
+| drop | completed taskId · 이전 retry dispatchId · 다른 런 id → **silent drop** (로그 1줄, 사용자 반복 고지 0) |
+| closed 후 | late heartbeat/worker_done → silent dedupe · FINAL 이후 잔여 메일 반복 고지 **금지** |
+| decision_gate | 미해결 human gate 는 drop 금지 |
+
+**Post-inject liveness + hung recovery (필수)**
+
+`tui-idle` + `injected: true` 만으로 “작업 중” 금지.
+
+1. inject 후 **45–90s** wall-time 후 `terminal show|read`.
+2. **Healthy:** tool call · 파일 경로 · 비자명 preview 성장 · 유효 heartbeat.
+3. **Unhealthy (즉시 hung 후보):** shell 프롬프트만 (`❯` 단독) · “Update ran successfully / restart” · MCP/launch 줄만 · spinner-only ≥90s · **Ready 인데 도구/산출 0**.
+4. **Active-dispatch stuck (별 신호):** `dispatch-show` 가 active 인데 터미널이 비생산 → **같은 pane re-inject 집착 금지**.  
+   - `task-update --status ready`  
+   - 가능하면 이전 dispatch 를 소진/무효화한 뒤  
+   - **fresh terminal** + **새 dispatch** (frozen pane 에 재inject 하지 않음)  
+   - role×task hang recovery **max 1** 후 decision_gate 또는 coordinator-exception
+5. **Codex 특이:** 자가 업데이트 UI / full-access Ready 공회전은 hang 과 동일 취급. update 프롬프트가 보이면 그 세션에 task inject 금지 — 새 세션.
+6. **Recovery SSOT:** coordinator partial edit 또는 resume 시 task spec 에 **현재 uncommitted 경로 목록 + “이 트리가 SSOT”** 를 명시. **단일 edit owner** 만 허용 (이중 편집 금지).
+
+**안티패턴 (메일 스택 · 대기)**
+
+- wait 루프 2개 이상
+- `--types` 에 heartbeat 포함
+- NDJSON 전체를 단일 `json.loads`
+- completed/stale `dispatchId` 메일을 현재 완료로 처리
+- active-dispatch stuck 에 같은 pane re-inject 반복
+- 라운드마다 새 세션 create → inject 폭증
+- worker_done 을 읽지 않고 “메시지 있음” 만 반복 표시
+- 미소비 메일 N건을 한 화면에 쌓아 두고 파이프라인 정지
 
 ### 4) 파이프라인 단계
 
@@ -580,7 +721,8 @@ docs/
 ### .scv/state/$RUN_ID/
 
 ```text
-run.json          # phase, closed, resolvedDocsLanguage, status, auditStatus, reclaimStatus, terminals[]
+run.json          # phase, closed, resolvedDocsLanguage, status, auditStatus, reclaimStatus,
+                  # terminals[], completedTaskIds[], activeDispatchId, phaseEnteredAt (권장)
 brief/plan-brief.md
 plan-review/codex.md
 plan-refine/decisions.md
@@ -595,6 +737,8 @@ audit/
   improvements.md
   reclaim-log.md
 ```
+
+**phase 시각 (권장 · audit 정량화):** `run.json` 에 `phaseEnteredAt` / phase 전환 시 wall-clock 기록. inventory 에 대략 timeline 만 있어도 되지만, 다음 런 비교를 위해 타임스탬프를 남긴다.
 
 ## 성공 상태
 
@@ -670,9 +814,16 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 - docs-only 런에서 기존 lint 위반을 자동으로 범위 확장
 - plan-review skip / 재승인만으로 기술 리뷰 우회
 - 병렬 `check --wait` · waiter 복구 시 worker/task kill
+- wait `--types` 에 `heartbeat`/`status` 포함 (메일 스택·완료 오인)
+- `check --wait` NDJSON 을 단일 `json.loads` 로 파싱 (keepalive Extra data)
+- Orchestration Messages 미소비 스택 방치 · 같은 메일 반복 낭독하며 정지
+- heartbeat 를 worker_done 처럼 취급
+- completed/stale dispatchId 의 late worker_done 으로 파이프라인 재오픈
 - closed 런의 **미해결** decision_gate 무시
 - FINAL 후 late mail 반복 고지
-- 워커마다 새 탭 create · 핑퐁마다 새 세션
+- 워커마다 새 탭 create · 핑퐁마다 새 세션 · 동일 role 중복 create
+- Codex update/shell/Ready 공회전에 같은 pane re-inject 반복
+- recovery 시 coordinator + worker **이중 편집** (SSOT uncommitted 목록 없이)
 - Hangul 비율만으로 문서 언어 gate 확정
 - `READY_TO_PUSH`를 gate 실패 수용 상태로 오용
 - `codex exec`에 인터랙티브 `-a never` 사용
@@ -683,211 +834,187 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 - FINAL 전에 audit/reclaim 없이 closed (사용자 명시 skip 제외)
 ```
 
-### LESSONS.md
+### SKILL.md → $HOME/.grok/skills/scv/SKILL.md
 ```markdown
-# scv LESSONS
-
-Run-notes for the scv orchestration mode. Read at the start of every run. Append short, dated bullets after hang/recovery or user corrections.
-
-## Hard rules (do not erode)
-
-- Worker commands: exact strings from `meta.json` only — no invented models/flags.
-- Hang recovery: max 1 retry per role × task, then decision_gate.
-- Dispatch only task ids created in **this** run (`task-create` response). No title fuzzy match.
-- Late `worker_done` on already-completed tasks: ignore (silent dedupe after close).
-- Exactly one `check --wait` owner loop. Recovering a backgrounded waiter kills **waiter only**, never worker/task.
-- Never stage or commit `.scv/**`.
-- Gate invent forbidden; cmds frozen at plan approval (with scope manifest).
-- P0 never becomes success; SUCCESS_WITH_ACCEPTED_RISK requires **human** decision_gate only.
-- Plan body change after approve → Codex plan-review again (no user-skip of technical review).
-- Scope expansion → user approve + plan patch + Codex re-review (no “minor skip”).
-- Docs prose language: strong default **ko** (policy P1, not finding-P0). Override via `.orca/scv.md` `docsLanguage`.
-- `task-create` uses `--task-title` + `--spec` (not `--title`).
-- **Intake prompt-first:** consume user seed; no premature option menu; free-text once if empty; RUN_ID after non-empty seed.
-- **Audit:** time/stability only; keep pipeline; no evolution; no dedicated meta workers; ship status orthogonal.
-- **Close order:** AUDIT → RECLAIM → CLOSING → FINAL. Reclaim allowlist only; never `reset --all`.
-
-## Session log
-
-- 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
-- 2026-07-18 — **Intake clarified (prompt-first):** do not lead with estimated multi-option AskUser menu. Prefer user message as seed; if bare `/scv`, one free-text ask. RUN_ID only after non-empty seed (no orphan state).
-- 2026-07-18 — Coordinator progress narrated in English. Fix: user-facing progress/questions/FINAL must be Korean. **Extended:** committed `docs/**` prose defaults to Korean (`resolvedDocsLanguage`); policy P1 not finding-P0.
-- 2026-07-18 — Workers opened as separate tabs. Fix: first create + subsequent `terminal split` + rename.
-- 2026-07-18 — Ping-pong sessions: one handle per role; round 2+ re-dispatch only.
-- 2026-07-18 — docs-only expanded into 16-file lint fix. Fix: baseline vs acceptance; no auto-expand; scope manifest + re-review on expand.
-- 2026-07-18 — Parallel / backgrounded `check --wait`. Fix: single owner; kill **waiter only**.
-- 2026-07-18 — Late mail after SUCCESS. Fix: close rules + silent dedupe; never drop unresolved decision_gate.
-- 2026-07-18 — `task-create --title` invalid → `--task-title`.
-- 2026-07-18 — `codex exec … -a never` fails; interactive meta keeps `-a never`; exec uses `--dangerously-bypass-approvals-and-sandbox` without `-a`.
-- 2026-07-18 — **Post-run audit + reclaim:** after release, inventory + Claude/Codex (1 each) write time/stability improvements under `.scv/state/$RUN_ID/audit/`; then reclaim createdByRun terminals; then close + FINAL. Audit is **not** pack evolution. Order: AUDIT → RECLAIM → CLOSING → FINAL.
-
-<!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->
-```
-
-### templates/plan.ko.md
-```markdown
-# Plan — {{제목}}
-
-- **RUN_ID:** `{{RUN_ID}}`
-- **Branch:** `{{branch}}`
-- **작성일:** {{YYYY-MM-DD}}
-- **Prose language:** {{resolvedDocsLanguage}} (식별자·경로·명령은 영문)
-
+---
+name: scv
+description: >
+  Run the user-defined Orca orchestration mode pack "scv" (supervised feature
+  shipping harness). Trigger when user says /scv, scv, scv-harness, or asks to
+  run the scv plan→implement→review→release pipeline.
+  Coordinator=Grok. Cross-review: plan Claude write / Codex review; code Codex
+  write / Claude review. Loads $HOME/.orca/scv/PLAYBOOK.md and meta.json.
+  Use orchestration skill for all orca orchestration commands.
 ---
 
-## Overview
+# scv mode
 
-### 문제
+User-owned Orca mode pack for **feature shipping** (plan → implement → quality gate → code-review → release → **audit → reclaim** → FINAL).
 
-(무엇을 왜 고치는지)
-
-### 목표
-
-(성공 시 관찰 가능한 결과)
-
-### 비목표 (Out of scope)
-
--
-
----
-
-## Architecture
-
-(영향 범위·모듈 관계. 코드 스니펫 금지 — 산문으로)
-
----
-
-## Files to change (Scope manifest 초안)
-
-| 경로/glob | 변경 종류 | 설명 |
-|-----------|-----------|------|
-| | 추가/수정/삭제/rename | |
-
-- **예상 파일 수 / 상한:**
-- 승인 후 이 표·상한·종류가 **동결**된다. 이탈 시 범위 확장 gate.
-
----
-
-## Test Impact
-
-### 가설
-
-(변경 후 어떤 검사가 어떻게 변할 것으로 예상하는가)
-
-### 검증
-
-(실제로 무엇을 돌려 확인할 것인가. “위반 집합 불변” 같은 추측은 가설로만 쓰고 검증으로 확인)
-
-### Lint 재활성 정책
-
-설정 로드 복구 등으로 이전에 죽어 있던 lint가 살아날 수 있음:
-
-- [ ] (A) 최소 autofix를 **별 배치**로 처리 (사용자 확인)
-- [ ] (B) FAIL 보고 후 decision_gate
-- [ ] (C) 후속 이슈로 분리 (**기본 권장**)
-
-coordinator 자가 확장 금지.
-
----
-
-## To-dos (배치)
-
-### Batch 1 —
-
-1. … → **verify:**
-2. …
-
----
-
-## Gate commands (frozen candidates)
-
-```text
-{{예: pnpm lint}}
-```
-
-- typecheck / test: 스크립트 없으면 **N/A** (발명 금지)
-
----
-
-## Constraints
-
-- scope manifest 준수
-- `git add -A` 금지 · `.scv/**` 스테이징 금지
-- push는 사용자 확인 전 금지
-
----
-
-## Implementation deltas vs original plan
-
-(구현 중 범위 확장·decision_gate 결과 — 사후 기록)
-```
-
-### templates/ARCHITECTURE.ko.md
-```markdown
-# Architecture — {{프로젝트명}}
-
-에이전트·인간을 위한 모노레포/시스템 개요. 구조가 바뀌면 이 파일을 갱신한다.
-
-**Prose language:** {{resolvedDocsLanguage}} (기본 한글)
-
-## Overview
-
-| 항목 | 내용 |
+| Role | Path |
 |------|------|
-| 저장소 | |
-| 패키지 매니저 | |
-| 빌드 | |
-| 루트 버전 | |
-| 기본 브랜치 | |
+| Install root | `$HOME/.orca/scv/` |
+| PLAYBOOK (SSOT) | `$HOME/.orca/scv/PLAYBOOK.md` |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.0**) |
+| templates | `$HOME/.orca/scv/templates/` |
+| quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
+| LESSONS | `$HOME/.orca/scv/LESSONS.md` |
+| self-check | `$HOME/.orca/scv/scv-selfcheck.sh` |
+| Source pack | `$HOME/Desktop/orchestration/scv-orchestration-pack.md` |
 
-루트 스크립트:
+Engine = `orchestration` skill. **행동 계약 SSOT = PLAYBOOK.**
 
-- …
+## 사용자 대면 언어 (필수 · 한글)
 
-## Workspace layout
+진행·질문·FINAL = **한국어**. role/path/task id/CLI = 영문 허용.
+
+## 문서 언어
+
+기본 **ko** (`resolvedDocsLanguage`). finding P0 아님. Hangul 비율만으로 gate 금지.
+
+## Intake (prompt-first)
+
+1. 사용자 메시지에서 seed 추출 (트리거 문구 제외).
+2. seed 있음 → 요약 후 모호성만 인터뷰. **추정 옵션 메뉴 선제 금지.**
+3. bare `/scv` → 자유 서술 1회 또는 다음 메시지 대기. orphan RUN_ID 금지.
+4. **non-empty seed 후** RUN_ID · state · brief → 그다음만 워커 dispatch.
+
+## When invoked
+
+1. Read PLAYBOOK, meta, LESSONS. Optional `scv-selfcheck.sh`.
+2. Overlay `.orca/scv.md` / `AGENTS.md`.
+3. orchestration skill (one wait owner, NDJSON parse, liveness, hung recovery).
+4. `orca status --json` ready · residual tasks · **this-run ids only**.
+5. **Prompt-first intake** (위) → Goal/brief.
+6. Pipeline:
 
 ```text
-.
-├── apps/
-├── packages/
-├── docs/
-└── …
+preflight → seed/interview → (init?) → Claude plan
+  → Codex↔Claude plan review ≤2 → user approve
+  → Codex implement → quality gate
+  → Claude code-review ↔ Codex fix ≤3
+  → release 7a/7b
+  → AUDIT (inventory + Claude∥Codex time/stability · no evolution)
+  → RECLAIM (createdByRun only)
+  → CLOSING → closed → FINAL
 ```
 
-## 앱 / 패키지
+### Cross-review (fixed)
 
-### apps/…
+| Phase | Write | Review |
+|-------|-------|--------|
+| plan | Claude | Codex |
+| code | Codex | Claude |
 
-| 관심사 | 선택 |
-|--------|------|
-| 프레임워크 | |
-| 데이터 | |
-| 스타일 | |
+### Hard rules
 
-디렉터리 구조(산문 또는 트리):
+| Rule | Value |
+|------|--------|
+| Worker commands | exact `meta.json` only · **still 7 workers** (no audit meta roles) |
+| Hang recovery | max 1 per role×task · **never re-inject active-dispatch-stuck pane** |
+| Task selection | this-run ids only · `--task-title` + `--spec` |
+| Wait | **exactly one** `check --wait` · types=`worker_done,escalation,decision_gate` only · **never** heartbeat · consume 1 msg then act · drain unread · timeout=soft · waiter kill ≠ worker kill |
+| Wait parse | **NDJSON line-wise**; skip `_keepalive`/`_heartbeat`; no whole-buffer `json.loads` |
+| Straggler | drop lifecycle unless `taskId` this-run **and** dispatchId active/still-dispatched; completedTaskIds silent dedupe |
+| Post-inject | 45–90s liveness mandatory; shell / Codex update / Ready-no-tools = hung → fresh terminal + new dispatch |
+| Terminal | first create then split+rename · **idempotent** reuse alive (title,role) · one live handle per role |
+| Recovery SSOT | resume task lists uncommitted paths; **single edit owner** |
+| Staging | never `git add -A` · never `.scv/**` |
+| Scope expand | user + plan-review re-pass · no skip |
+| Intake | prompt-first · no premature option menu |
+| Audit | time/stability only · keep ops · 1 review each · ship orthogonal |
+| Reclaim | after audit, before close · allowlist · never `reset --all` |
+| Close order | **AUDIT → RECLAIM → CLOSING → FINAL** |
+| P0 | never SUCCESS · human risk accept only |
+| dispatch | no `--model` |
 
-```text
-```
+- Track `terminals[]` with `createdByRun` / `preExisting` for reclaim; prefer `completedTaskIds[]`, `activeDispatchId`, `phaseEnteredAt` in `run.json`.
+- Codex terminal: `-a never -s danger-full-access`. `codex exec`: no `-a`.
 
-## 환경 변수
+### Audit artifacts
 
-| 이름 | 용도 |
-|------|------|
-| | |
+`.scv/state/$RUN_ID/audit/{inventory,claude,codex,improvements,reclaim-log}.md` (gitignore).
 
-## 품질 게이트 (프로젝트 기본)
+### FINAL (한글 8절)
 
-| Gate | 명령 | 비고 |
-|------|------|------|
-| lint | | |
-| typecheck | N/A 또는 명령 | |
-| test | N/A 또는 명령 | |
+요약 · 단계별 결과 · 결정 · 변경 파일 · 게이트 · Git/릴리스 · Docs · 위험/다음 단계(**audit·reclaim 상태 포함**).
 
-## 관련 문서
+## Worker commands (meta — keep in sync)
 
-- plans: `docs/plans/`
-- reviews: `docs/reviews/`
-- changelog: `docs/changelog/`
-- testing: `docs/tests/TESTING.md`
+| role | command |
+|------|---------|
+| init | `grok -m grok-4.5 --reasoning-effort high` |
+| plan | `claude --model opus --dangerously-skip-permissions` |
+| plan-review | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` |
+| implement | `codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access` |
+| code-review | `claude --model opus --dangerously-skip-permissions` |
+| review-fix | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` |
+| release | `grok -m grok-4.5 --reasoning-effort high` |
+
+## Anti-patterns
+
+- Premature ship option menu; ignore seed prompt
+- Empty Goal error-loop; orphan state on bare `/scv`
+- Parallel wait; reset --all; fuzzy terminal close
+- **Stacking Orchestration Messages** (heartbeat in wait types, dual wait, unread not drained)
+- Whole-buffer parse of `check --wait` NDJSON; treating keepalive as failure
+- Re-inject into active-dispatch-stuck / Codex update-shell pane
+- Treating heartbeat or late completed worker_done as current completion
+- Dual edit owners on recovery (coordinator partial + resume without SSOT list)
+- Audit as redesign/evolution; dedicated audit meta workers; audit ping-pong
+- Audit fail → force BLOCKED ship status
+- English-only user progress; plan-review skip; `git add -A`
 ```
 ````
+
+---
+
+## 엔진 스킬 (orchestration) 연계
+
+조율 엔진 SSOT: `$HOME/.agents/skills/orchestration/SKILL.md`  
+pack 1.3.0 와 맞춘 엔진 쪽 규칙:
+
+- One wait owner; never dual `check --wait`
+- NDJSON line-wise parse for wait stdout
+- Lifecycle straggler drop by taskId+dispatchId
+- Post-inject liveness; Codex update/shell/Ready-no-tools = hung
+- No re-inject into active-dispatch-stuck pane
+- Recovery SSOT: uncommitted paths + single edit owner
+
+---
+
+## 템플릿 파일
+
+설치 시 `templates/` 에 유지 (변경 없으면 기존 유지):
+
+- `templates/ARCHITECTURE.ko.md`
+- `templates/plan.ko.md`
+
+---
+
+## 검증
+
+```bash
+# packVersion
+python3 -c "import json;print(json.load(open('$HOME/.orca/scv/meta.json'))['packVersion'])"
+# should be 1.3.0
+
+# self-check if present
+test -x "$HOME/.orca/scv/scv-selfcheck.sh" && "$HOME/.orca/scv/scv-selfcheck.sh" || true
+```
+
+## Changelog
+
+| packVersion | 날짜 | 요약 |
+|-------------|------|------|
+| 1.3.0 | 2026-07-19 | login-persist audit → wait NDJSON · straggler · Codex stuck · terminal idempotent · recovery SSOT |
+| 1.2.0 | 2026-07-18 | prompt-first intake · post-run AUDIT · RECLAIM · close order |
+
+---
+
+## 원본 경로
+
+| 설치본 | 소스 팩 |
+|--------|---------|
+| `$HOME/.orca/scv/*` | `$HOME/Desktop/orchestration/scv-orchestration-pack.md` |
+| `$HOME/.grok/skills/scv/SKILL.md` | 동 팩에 임베드 |

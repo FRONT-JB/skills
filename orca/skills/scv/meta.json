@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.2.0",
+  "packVersion": "1.3.0",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -10,12 +10,22 @@
   "worktreePolicy": "active",
   "waitTimeoutMs": 900000,
   "implementSoftBudgetMs": 1800000,
+  "postInjectLivenessMs": 60000,
   "hangRetryMaxPerRole": 1,
   "taskTitlePrefix": "[scv:$RUN_ID]",
   "stateRoot": ".scv/state/$RUN_ID/",
   "planPathPattern": "docs/plans/YYYY-MM-DD_<slug>.plan.md",
   "templatesDir": "$HOME/.orca/scv/templates/",
   "defaultDocsLanguage": "ko",
+  "wait": {
+    "types": "worker_done,escalation,decision_gate",
+    "forbidHeartbeatInWaitTypes": true,
+    "singleOwner": true,
+    "parseMode": "ndjson-linewise",
+    "skipKeepaliveKeys": ["_keepalive", "_heartbeat"],
+    "stragglerDrop": true,
+    "requireActiveDispatchIdMatch": true
+  },
   "audit": {
     "requiredAttempt": true,
     "shipStatusOrthogonal": true,
@@ -114,16 +124,20 @@
   "notes": {
     "claudeModels": "plan and code-review use opus + --dangerously-skip-permissions (verified alias pattern). Do not invent full model ids after hang.",
     "codexFlags": "Orca terminal workers: always -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec (non-interactive): do NOT pass -a; use -s danger-full-access --dangerously-bypass-approvals-and-sandbox.",
+    "codexStuck": "Self-update / shell prompt / Ready with no tools after inject = hung. Do not re-inject into active-dispatch-stuck pane. task-update ready → fresh terminal → new dispatch. Max 1 hang recovery per role×task.",
     "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
     "sourcePack": "$HOME/Desktop/orchestration/scv-orchestration-pack.md",
     "userFacingLanguage": "Korean for progress/questions/FINAL; English tokens OK for roles/paths/ids/CLI",
     "docsLanguage": "Default ko for committed docs prose. Resolve: user directive > .orca/scv.md docsLanguage > meta defaultDocsLanguage. Inject resolved directive into worker specs; do not hardcode Korean when override is en.",
-    "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe. Unresolved decision_gate must not be dropped.",
+    "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe by completedTaskIds+dispatchId. Unresolved decision_gate must not be dropped.",
     "scopeExpansion": "Leave approved scope manifest → stop. In-run expand: user approve + plan patch + Codex plan-review re-pass + re-freeze. No skip. Baseline lint FAIL unrelated to docs-only: record only, do not auto-expand.",
     "taskCreateCli": "orca orchestration task-create --task-title ... --spec ... (not --title)",
     "intake": "Prompt-first: consume user message as seed; no premature estimated option menu. Bare /scv → free-text once. RUN_ID only after non-empty seed.",
     "audit": "Post-release audit: time/stability only, keep pipeline ops. No evolution redesign. No dedicated meta workers—reuse idle Claude/Codex handles with new task ids. Each agent 1 review, no ping-pong. Ship status orthogonal to auditStatus. Artifacts under .scv/state/$RUN_ID/audit/ (gitignore).",
     "reclaim": "After audit, before close: reclaim only createdByRun exact handles + orphan waiters. Never reset --all, never fuzzy match, keep coordinator tab and borrowed handles. BLOCKED: skip destructive reclaim by default.",
-    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain unread if UI stacks; heartbeat≠completion; timeout=soft recheck"
+    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain unread if UI stacks; heartbeat≠completion; timeout=soft recheck; parse wait stdout NDJSON line-wise; drop straggler lifecycle for non-active dispatchId",
+    "terminalIdempotent": "first create then split+rename; reuse alive (title,role); one live handle per role; dead pane never completion authority",
+    "recoverySsot": "On implement resume after hang/coordinator-exception: task spec must list uncommitted SSOT paths; single edit owner only",
+    "changelog_1_3_0": "2026-07-19: coordination hygiene from login-persist audit — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended"
   }
 }

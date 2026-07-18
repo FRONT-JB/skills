@@ -17,10 +17,11 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 |------|------|
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK (SSOT) | `$HOME/.orca/scv/PLAYBOOK.md` |
-| meta | `$HOME/.orca/scv/meta.json` (`packVersion`) |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.0**) |
 | templates | `$HOME/.orca/scv/templates/` |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` |
+| self-check | `$HOME/.orca/scv/scv-selfcheck.sh` |
 | Source pack | `$HOME/Desktop/orchestration/scv-orchestration-pack.md` |
 
 Engine = `orchestration` skill. **행동 계약 SSOT = PLAYBOOK.**
@@ -42,9 +43,9 @@ Engine = `orchestration` skill. **행동 계약 SSOT = PLAYBOOK.**
 
 ## When invoked
 
-1. Read PLAYBOOK, meta, LESSONS.
+1. Read PLAYBOOK, meta, LESSONS. Optional `scv-selfcheck.sh`.
 2. Overlay `.orca/scv.md` / `AGENTS.md`.
-3. orchestration skill (one wait owner, liveness, hung recovery).
+3. orchestration skill (one wait owner, NDJSON parse, liveness, hung recovery).
 4. `orca status --json` ready · residual tasks · **this-run ids only**.
 5. **Prompt-first intake** (위) → Goal/brief.
 6. Pipeline:
@@ -72,9 +73,14 @@ preflight → seed/interview → (init?) → Claude plan
 | Rule | Value |
 |------|--------|
 | Worker commands | exact `meta.json` only · **still 7 workers** (no audit meta roles) |
-| Hang recovery | max 1 per role×task |
+| Hang recovery | max 1 per role×task · **never re-inject active-dispatch-stuck pane** |
 | Task selection | this-run ids only · `--task-title` + `--spec` |
-| Wait | **exactly one** `check --wait` owner · types=`worker_done,escalation,decision_gate` only · **never** put `heartbeat` in wait types · consume 1 msg then act · drain unread if UI stacks · timeout=soft recheck not failure · waiter kill ≠ worker kill |
+| Wait | **exactly one** `check --wait` · types=`worker_done,escalation,decision_gate` only · **never** heartbeat · consume 1 msg then act · drain unread · timeout=soft · waiter kill ≠ worker kill |
+| Wait parse | **NDJSON line-wise**; skip `_keepalive`/`_heartbeat`; no whole-buffer `json.loads` |
+| Straggler | drop lifecycle unless `taskId` this-run **and** dispatchId active/still-dispatched; completedTaskIds silent dedupe |
+| Post-inject | 45–90s liveness mandatory; shell / Codex update / Ready-no-tools = hung → fresh terminal + new dispatch |
+| Terminal | first create then split+rename · **idempotent** reuse alive (title,role) · one live handle per role |
+| Recovery SSOT | resume task lists uncommitted paths; **single edit owner** |
 | Staging | never `git add -A` · never `.scv/**` |
 | Scope expand | user + plan-review re-pass · no skip |
 | Intake | prompt-first · no premature option menu |
@@ -84,8 +90,7 @@ preflight → seed/interview → (init?) → Claude plan
 | P0 | never SUCCESS · human risk accept only |
 | dispatch | no `--model` |
 
-- Terminal: first `create`; later `split`+`rename`. Ping-pong: same handle re-dispatch.
-- Track `terminals[]` with `createdByRun` / `preExisting` for reclaim.
+- Track `terminals[]` with `createdByRun` / `preExisting` for reclaim; prefer `completedTaskIds[]`, `activeDispatchId`, `phaseEnteredAt` in `run.json`.
 - Codex terminal: `-a never -s danger-full-access`. `codex exec`: no `-a`.
 
 ### Audit artifacts
@@ -113,8 +118,11 @@ preflight → seed/interview → (init?) → Claude plan
 - Premature ship option menu; ignore seed prompt
 - Empty Goal error-loop; orphan state on bare `/scv`
 - Parallel wait; reset --all; fuzzy terminal close
-- **Stacking Orchestration Messages on coordinator** (heartbeat in wait types, dual wait loops, unread not drained)
-- Treating heartbeat as completion; re-reading stacked mail without advancing
+- **Stacking Orchestration Messages** (heartbeat in wait types, dual wait, unread not drained)
+- Whole-buffer parse of `check --wait` NDJSON; treating keepalive as failure
+- Re-inject into active-dispatch-stuck / Codex update-shell pane
+- Treating heartbeat or late completed worker_done as current completion
+- Dual edit owners on recovery (coordinator partial + resume without SSOT list)
 - Audit as redesign/evolution; dedicated audit meta workers; audit ping-pong
 - Audit fail → force BLOCKED ship status
 - English-only user progress; plan-review skip; `git add -A`
