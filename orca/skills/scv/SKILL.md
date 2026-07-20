@@ -13,13 +13,16 @@ description: >
 
 User-owned Orca mode pack for **feature shipping** (plan → implement → quality gate → code-review → release → **audit → reclaim** → FINAL).
 
-**행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.** Engine = `orchestration` skill.  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.4**).
+**행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.**  
+**표시 연출 SSOT = `$HOME/.orca/scv/UX.md`.**  
+**Engine = `orchestration` skill** (`worker_done` structured flags only).  
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.5**).
 
 | Role | Path |
 |------|------|
 | Install root | `$HOME/.orca/scv/` |
-| PLAYBOOK (SSOT) | `$HOME/.orca/scv/PLAYBOOK.md` |
+| PLAYBOOK (behavior) | `$HOME/.orca/scv/PLAYBOOK.md` |
+| UX (display) | `$HOME/.orca/scv/UX.md` |
 | meta | `$HOME/.orca/scv/meta.json` |
 | templates | `$HOME/.orca/scv/templates/` |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
@@ -31,13 +34,23 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.4**).
 
 ## 사용자 대면 · 문서 언어
 
-- 진행·질문·FINAL = **한국어**. role/path/task id/CLI = 영문 허용. `scv_line` 인용만 영문 flavor.
-- **채팅 한 줄:** `**【 계획 작성 】** "SCV good to go, sir." — plan.md 작성 중 · 다음: 계획 검토`  
-  (`【 `/` 】` 공백 1칸 · `scv ·` 금지 · phase 진입만 · 표=PLAYBOOK)
-- **터미널 타이틀 / `--display-name`:** 동일 한글 라벨 (`계획 작성`, `구현` …)
-- **`--task-title`:** `[scv:$RUN_ID] 계획 작성 · <slug>`
-- **wait shell description (Tasks 패널):** `계획 작성 완료 대기 (worker_done)` — `Rolling wait…` 금지
-- 커밋 docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
+- 진행·질문·FINAL = **한국어**. 상세 표 = **UX.md**.
+- 채팅 한 줄: `**【 계획 작성 】** "SCV good to go, sir." — … · 다음: …`
+- 탭 / `--display-name` 한글 · `--task-title` `[scv:$RUN_ID] 한글 · slug`
+- wait description: `계획 작성 완료 대기 (worker_done)` · `Rolling wait…` 금지
+- docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
+
+## worker_done (엔진 · 필수)
+
+Structured flags only — see orchestration skill. Spec **top** must include LIFECYCLE block (PLAYBOOK).
+
+```bash
+orca orchestration send --to <coord> --type worker_done \
+  --subject "…" --body "…" \
+  --task-id <task_> --dispatch-id <ctx_> \
+  --files-modified "a,b" --json
+# NEVER --payload together with --task-id / --dispatch-id / …
+```
 
 ## Intake (prompt-first)
 
@@ -48,9 +61,9 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.4**).
 
 ## When invoked
 
-1. Read PLAYBOOK, meta, LESSONS (hard list). Optional `scv-selfcheck.sh`.
+1. Read PLAYBOOK, UX, meta, LESSONS (hard list). Optional `scv-selfcheck.sh`.
 2. Overlay `.orca/scv.md` / `AGENTS.md`.
-3. orchestration skill (single wait owner, JSON-sequence parse, wait·liveness fusion).
+3. orchestration skill (single wait owner, JSON-sequence parse, wait·liveness fusion, **structured worker_done**).
 4. `orca status --json` · this-run ids only · peer soft-warn.
 5. Prompt-first intake → Goal/brief.
 6. Pipeline (**steps fixed**):
@@ -77,23 +90,21 @@ preflight → seed/interview → (init?) → Claude plan
 
 | Rule | Value |
 |------|--------|
-| Workers | exact `meta.json` · **7 roles** (no audit meta workers) |
+| Workers | exact `meta.json` · **7 roles** |
 | RPC ids | `result.task.id` / `result.dispatch.id` / create `result.terminal.handle` / split `result.split.handle` · never root `id` |
-| Wait | one `check --wait` · types=`worker_done,escalation,decision_gate` · never heartbeat · route unread |
+| Wait | one `check --wait` · types=`worker_done,escalation,decision_gate` · never heartbeat |
+| worker_done | structured flags only · LIFECYCLE in every `--spec` · success once |
 | Hang | max 1 per role×task · never re-inject stuck pane |
-| Speed | step-preserving · next-role warm only · no review skip · no same-batch implement∥review |
+| Speed | step-preserving · next-role warm only |
 | Close | **AUDIT → RECLAIM → CLOSING → FINAL** |
-| Mid-run reclaim | opt-in · default keep · evidence escrow · no `--tab` (PLAYBOOK §8b) |
 | Staging | never `git add -A` · never `.scv/**` |
-| P0 | never SUCCESS without human risk accept |
-| task-create | `--task-title` + `--display-name`(한글) + `--spec` · no `--model` on dispatch |
+| task-create | `--task-title` + `--display-name`(한글) + `--spec` |
 
-- Track `terminals[]` (`createdByRun`/`preExisting`), `tasksById[taskId].activeDispatchId`, `completedTaskIds[]`.
 - Rolling wait **90000ms**; `waitTimeoutMs` **900000** = overall budget guide.
 
 ### FINAL (한글 8절)
 
-요약 · 단계별 결과 · 결정 · 변경 파일 · 게이트 · Git/릴리스 · Docs · 위험/다음 단계 (audit·reclaim·handoff 포함).
+요약 · 단계별 결과 · 결정 · 변경 파일 · 게이트 · Git/릴리스 · Docs · 위험/다음 단계.
 
 ## Worker commands (keep in sync with meta)
 
@@ -107,10 +118,9 @@ preflight → seed/interview → (init?) → Claude plan
 | review-fix | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` |
 | release | `grok -m grok-4.5 --reasoning-effort high` |
 
-## Anti-patterns (see PLAYBOOK for full list)
+## Anti-patterns (see PLAYBOOK)
 
 - Premature option menu; orphan RUN_ID; parallel wait; `reset --all`
-- Whole-buffer wait parse; root RPC `id` as taskId; wrong split handle
-- Re-inject stuck pane; fixed sleep before wait; empty wait after worker_done
-- Audit as evolution; mid-run reclaim as new phase; close `--tab` without escrow
-- same-batch implement∥code-review; `git add -A`
+- `--payload` + structured flags together; second worker_done after success
+- Whole-buffer wait parse; root RPC `id` as taskId; re-inject stuck pane
+- Audit as evolution; `git add -A`; same-batch implement∥code-review

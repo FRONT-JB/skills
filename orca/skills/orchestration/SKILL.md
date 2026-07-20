@@ -78,12 +78,15 @@ orca orchestration dispatch-show --task <task_id> --json
 ## Messaging
 
 ```bash
-orca orchestration send --to <handle|@group> --subject <text> [--from <handle>] [--body <text>] [--type <type>] [--priority <level>] [--thread-id <id>] [--payload <json>] [--json]
+orca orchestration send --to <handle|@group> --subject <text> [--from <handle>] [--body <text>] [--type <type>] [--priority <level>] [--thread-id <id>] \
+  [--payload <json> | --task-id <id> --dispatch-id <id> [--files-modified <csv>] [--report-path <path>] [--phase <text>]] [--json]
 orca orchestration check [--terminal <handle>] [--unread|--peek|--all] [--types <type,...>] [--inject] [--wait] [--timeout-ms <n>] [--json]
 orca orchestration reply --id <msg_id> --body <text> [--from <handle>] [--json]
 orca orchestration ask --to <handle> --question <text> [--options <csv>] [--timeout-ms <n>] [--from <handle>] [--json]
 orca orchestration inbox [--limit <n>] [--json]
 ```
+
+**Payload flags (Orca CLI official):** Prefer **structured** flags for worker lifecycle. **Never combine** `--payload` with `--task-id` / `--dispatch-id` / `--files-modified` / `--report-path` / `--phase` — CLI errors: `Use either --payload or structured payload flags, not both.`
 
 Rules:
 
@@ -301,15 +304,38 @@ Wait for `tui-idle` before dispatching, then treat idle as a **minimum** readine
 
 ## Agent Guidance
 
-- Workers with a valid live preamble must send `worker_done` exactly once from their own terminal, even on failure:
-  `orca orchestration send --to <coordinator_handle> --type worker_done --subject "<short status>" --body "<3-sentence summary: what you did, what you found, what's left>" --payload '{"taskId":"<task_id>","dispatchId":"<dispatch_id>","filesModified":["path/a"],"reportPath":"<optional>"}' --json`
+- Workers with a valid live preamble must send `worker_done` **exactly once** from their own terminal, even on failure. **Canonical form (structured flags only — Orca CLI preferred):**
+  ```bash
+  orca orchestration send \
+    --to <coordinator_handle> \
+    --type worker_done \
+    --subject "<short status>" \
+    --body "<3-sentence summary: what you did, what you found, what's left>" \
+    --task-id <task_id> \
+    --dispatch-id <dispatch_id> \
+    --files-modified "path/a,path/b" \
+    --report-path "<optional>" \
+    --json
+  ```
+- **Forbidden:** `--payload '{...}'` **together with** `--task-id` / `--dispatch-id` / `--files-modified` / `--report-path` / `--phase`. Use **either** raw `--payload` **or** structured flags — never both.
+- Prefer structured flags over raw `--payload` (PowerShell/JSON quoting is fragile). If a send fails with `not both`, fix flags and retry **once**; after a successful `Sent msg_…`, do **not** send a second `worker_done`.
 - After sending `worker_done`, end your turn and idle at the agent prompt. Do not poll or keep calling `orca orchestration check`; the coordinator re-engages you with a fresh preamble + TASK block delivered as new terminal input.
-- For long tasks, send heartbeat/status only when the preamble asks for it, including both IDs:
-  `orca orchestration send --to <coordinator_handle> --type heartbeat --subject "alive" --payload '{"taskId":"<task_id>","dispatchId":"<dispatch_id>","phase":"implementing"}' --json`
+- For long tasks, send heartbeat/status only when the preamble asks for it, including both IDs (structured flags only):
+  ```bash
+  orca orchestration send \
+    --to <coordinator_handle> \
+    --type heartbeat \
+    --subject "alive" \
+    --task-id <task_id> \
+    --dispatch-id <dispatch_id> \
+    --phase "implementing" \
+    --json
+  ```
 - If blocked before completion, use `ask`; use `escalation` only when ownership is valid and the coordinator must intervene.
 - Treat preambles inherited through terminal history or full handoffs as stale unless the current prompt explicitly keeps that coordinator in the loop.
 - Coordinators should use `task-list --ready` as external memory, dispatch parallel waves, and avoid dependency chains deeper than 3-4 steps.
 - Prefer inter-worktree workers only for independent work that does not need current uncommitted state. When same-worktree work is required, create fresh terminals in that worktree and keep edit ownership clear.
+- Late / duplicate `worker_done` or `heartbeat` for already-completed tasks or stale `dispatchId` → coordinator **silent drop** (do not reopen). Failure-retry of a rejected CLI send is not a second completion if only one message was accepted.
 
 ## Example
 
