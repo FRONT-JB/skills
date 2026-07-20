@@ -1,6 +1,6 @@
 # scv 조율 모드 팩 (사용자 맞춤)
 
-> **버전:** packVersion **1.3.2** (문서 hygiene 반영 · 동작 계약 불변)  
+> **버전:** packVersion **1.3.2** (tooling+docs 슬림 · orchestration 동작 불변)  
 > **파일 SSOT (repo):** `$HOME/Desktop/jb/skills/orca/skills/scv/`  
 > **Install:** `$HOME/.orca/scv/` · Grok mirror `$HOME/.grok/skills/scv/SKILL.md`
 

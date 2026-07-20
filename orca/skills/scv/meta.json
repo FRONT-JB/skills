@@ -173,7 +173,7 @@
     "changelog_1_3_0": "2026-07-19: coordination hygiene — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT",
     "changelog_1_3_1": "2026-07-20: RPC id paths; JSON-sequence wait; per-task activeDispatch; wait·liveness fusion; step-preserving speed",
     "changelog_1_3_2": "2026-07-20: mid-run soft reclaim — opt-in, default keep, evidence escrow, two-phase, no --tab",
-    "changelog_docs_hygiene": "2026-07-20: docs-only slim (LESSONS hard list, quick-command, SKILL, pack pointer, notes) — no behavior change"
+    "changelog_docs_hygiene": "2026-07-20: tooling+docs slim (LESSONS hard list, quick-command, SKILL, pack pointer, notes, sync-from-source, selfcheck) — orchestration behavior unchanged"
   },
   "midRunReclaim": {
     "enabled": true,

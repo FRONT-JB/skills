@@ -20,7 +20,7 @@ Supervised feature-shipping harness for Orca.
 **Pipeline:** preflight → (init?) → plan → plan-review → implement → gate → code-review → release → **AUDIT → RECLAIM → CLOSING → FINAL**
 
 **Behavior contracts:** PLAYBOOK (SSOT) · meta.json · LESSONS hard list.  
-Docs hygiene only does not change pipeline steps or worker roles.
+Tooling+docs slim does not change pipeline steps or worker roles (orchestration behavior unchanged).
 
 ## Install / sync
 

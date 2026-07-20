@@ -61,6 +61,18 @@ grep -q 'Mid-run Soft Reclaim\|mid-run soft reclaim\|8b. Mid-run' "$ROOT/PLAYBOO
 grep -q 'evidence escrow\|Evidence escrow' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK evidence escrow" || fail "PLAYBOOK missing evidence escrow"
 grep -q 'forbidTabClose\|--tab' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no --tab reclaim" || fail "PLAYBOOK missing --tab forbid"
 
+# --- PLAYBOOK high-risk semantic anchors (pin #4 · Claude↔Codex P2) ---
+grep -q 'Ready-no-tools' "$ROOT/PLAYBOOK.md" && grep -q '≥90s' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK Ready-no-tools ≥90s" || fail "PLAYBOOK missing Ready-no-tools ≥90s"
+grep -q 're-inject 금지' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK no re-inject stuck pane" || fail "PLAYBOOK missing re-inject forbid"
+grep -q '바로 다음 역할' "$ROOT/PLAYBOOK.md" && grep -q 'warm pool' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK warm next role only" || fail "PLAYBOOK missing warm next-role"
+grep -q 'NDJSON' "$ROOT/PLAYBOOK.md" && grep -q '_keepalive' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK NDJSON/keepalive parse" || fail "PLAYBOOK missing NDJSON parse anchors"
+grep -q 'mid_reclaiming' "$ROOT/PLAYBOOK.md" && grep -q 'mid_reclaimed' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK mid_reclaiming→mid_reclaimed" || fail "PLAYBOOK missing two-phase mid-run status"
+
 # --- flow ---
 grep -q '문서 언어' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK 문서 언어" || fail "PLAYBOOK missing 문서 언어"
 grep -q 'Scope manifest\|scope manifest\|범위 확장' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK scope" || fail "PLAYBOOK missing scope"
@@ -93,7 +105,7 @@ else
   fail "mirror SKILL missing at $SKILL_MIRROR"
 fi
 
-# --- meta structural (behavior pin) ---
+# --- meta structural (behavior pin · expanded P2) ---
 n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('workers',[])))")
 [[ "$n" -eq 7 ]] && ok "workers count=7" || fail "workers count=$n expected 7"
 
@@ -113,6 +125,23 @@ assert m.get('midRunReclaim',{}).get('defaultAction')=='keep'
 assert m.get('midRunReclaim',{}).get('forbidTabClose') is True
 assert m.get('midRunReclaim',{}).get('requireEvidenceEscrow') is True
 assert m.get('midRunReclaim',{}).get('isNewPhase') is False
+# P2 exact pins (Claude↔Codex agreed action fields)
+assert m.get('hangRetryMaxPerRole')==1
+assert m.get('postInjectLivenessMs')==60000
+assert m.get('reclaim',{}).get('forbidResetAll') is True
+assert m.get('speed',{}).get('forbidSameBatchImplementParallelReview') is True
+assert m.get('wait',{}).get('completionRequiresOkAndMessages') is True
+expected_workers = [
+    ('init', 'grok', 'grok -m grok-4.5 --reasoning-effort high', 'edit'),
+    ('plan', 'claude', 'claude --model opus --dangerously-skip-permissions', 'edit'),
+    ('plan-review', 'codex', 'codex -m gpt-5.6-sol -c model_reasoning_effort=\"high\" -a never -s danger-full-access', 'review-only'),
+    ('implement', 'codex', 'codex -m gpt-5.6-sol -c model_reasoning_effort=\"xhigh\" -a never -s danger-full-access', 'edit'),
+    ('code-review', 'claude', 'claude --model opus --dangerously-skip-permissions', 'review-only'),
+    ('review-fix', 'codex', 'codex -m gpt-5.6-sol -c model_reasoning_effort=\"high\" -a never -s danger-full-access', 'edit'),
+    ('release', 'grok', 'grok -m grok-4.5 --reasoning-effort high', 'edit'),
+]
+got = [(w.get('role'), w.get('agent'), w.get('command'), w.get('ownership')) for w in m.get('workers', [])]
+assert got == expected_workers, f'workers tuples mismatch: {got}'
 " && ok "meta structural contracts" || fail "meta structural contracts invalid"
 
 if [[ $err -eq 0 ]]; then
