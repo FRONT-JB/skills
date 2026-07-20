@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.0",
+  "packVersion": "1.3.1",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -9,22 +9,53 @@
   "maxConcurrent": 2,
   "worktreePolicy": "active",
   "waitTimeoutMs": 900000,
+  "waitRollingTimeoutMs": 90000,
   "implementSoftBudgetMs": 1800000,
   "postInjectLivenessMs": 60000,
+  "postInjectLivenessMode": "wait-fusion",
   "hangRetryMaxPerRole": 1,
   "taskTitlePrefix": "[scv:$RUN_ID]",
   "stateRoot": ".scv/state/$RUN_ID/",
   "planPathPattern": "docs/plans/YYYY-MM-DD_<slug>.plan.md",
   "templatesDir": "$HOME/.orca/scv/templates/",
   "defaultDocsLanguage": "ko",
+  "skillCanonical": "$HOME/.orca/scv/SKILL.md",
+  "skillMirror": "$HOME/.grok/skills/scv/SKILL.md",
   "wait": {
     "types": "worker_done,escalation,decision_gate",
     "forbidHeartbeatInWaitTypes": true,
     "singleOwner": true,
-    "parseMode": "ndjson-linewise",
+    "parseMode": "ndjson-linewise-or-json-sequence",
     "skipKeepaliveKeys": ["_keepalive", "_heartbeat"],
     "stragglerDrop": true,
-    "requireActiveDispatchIdMatch": true
+    "requireActiveDispatchIdMatch": true,
+    "perTaskActiveDispatch": true,
+    "completionRequiresOkAndMessages": true,
+    "forbidFixedSleepBeforeWait": true,
+    "rollingVsBudget": "90000 rolling window; 900000 meta budget guide — do not block one CLI call for 15m"
+  },
+  "rpcIdPaths": {
+    "task": "result.task.id",
+    "dispatch": "result.dispatch.id",
+    "terminalCreate": "result.terminal.handle",
+    "terminalSplit": "result.split.handle",
+    "sendMessage": "result.message.id",
+    "checkMessages": "result.messages[].id",
+    "forbidRootIdAsTaskId": true
+  },
+  "speed": {
+    "stepPreservingOnly": true,
+    "waitLivenessFusion": true,
+    "terminalReuseNextRoleOnly": true,
+    "forbidFarWarmPool": true,
+    "forbidPlanParallelReview": true,
+    "forbidSameBatchImplementParallelReview": true,
+    "handoffLatencyFields": [
+      "workerDoneAt",
+      "messageConsumedAt",
+      "nextDispatchAt"
+    ],
+    "userGatePrepReadOnly": true
   },
   "audit": {
     "requiredAttempt": true,
@@ -37,7 +68,8 @@
     "noDedicatedMetaWorkers": true,
     "reviewsPerAgent": 1,
     "pingPong": false,
-    "stateDir": ".scv/state/$RUN_ID/audit/"
+    "stateDir": ".scv/state/$RUN_ID/audit/",
+    "preferParallelClaudeCodex": true
   },
   "reclaim": {
     "order": "after-audit-before-close",
@@ -126,18 +158,24 @@
     "codexFlags": "Orca terminal workers: always -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec (non-interactive): do NOT pass -a; use -s danger-full-access --dangerously-bypass-approvals-and-sandbox.",
     "codexStuck": "Self-update / shell prompt / Ready with no tools after inject = hung. Do not re-inject into active-dispatch-stuck pane. task-update ready → fresh terminal → new dispatch. Max 1 hang recovery per role×task.",
     "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
-    "sourcePack": "$HOME/Desktop/orchestration/scv-orchestration-pack.md",
+    "sourcePack": "$HOME/Desktop/jb/skills/orca/orchestration/scv-orchestration-pack.md",
+    "skillInstall": "Canonical SKILL at $HOME/.orca/scv/SKILL.md; mirror to $HOME/.grok/skills/scv/SKILL.md (byte-identical preferred). selfcheck verifies both.",
     "userFacingLanguage": "Korean for progress/questions/FINAL; English tokens OK for roles/paths/ids/CLI",
     "docsLanguage": "Default ko for committed docs prose. Resolve: user directive > .orca/scv.md docsLanguage > meta defaultDocsLanguage. Inject resolved directive into worker specs; do not hardcode Korean when override is en.",
     "runClose": "RUNNING→AUDIT→RECLAIMING→CLOSING→closed→FINAL. Block close if open human decision_gate. Late completed heartbeats/worker_done: silent dedupe by completedTaskIds+dispatchId. Unresolved decision_gate must not be dropped.",
     "scopeExpansion": "Leave approved scope manifest → stop. In-run expand: user approve + plan patch + Codex plan-review re-pass + re-freeze. No skip. Baseline lint FAIL unrelated to docs-only: record only, do not auto-expand.",
-    "taskCreateCli": "orca orchestration task-create --task-title ... --spec ... (not --title)",
+    "taskCreateCli": "orca orchestration task-create --task-title ... --spec ... (not --title). taskId = result.task.id only — never root envelope id.",
+    "rpcIdContract": "task=result.task.id; dispatch=result.dispatch.id; terminal create=result.terminal.handle; terminal split=result.split.handle; check messages=result.messages[].id. Root id is RPC UUID.",
     "intake": "Prompt-first: consume user message as seed; no premature estimated option menu. Bare /scv → free-text once. RUN_ID only after non-empty seed.",
-    "audit": "Post-release audit: time/stability only, keep pipeline ops. No evolution redesign. No dedicated meta workers—reuse idle Claude/Codex handles with new task ids. Each agent 1 review, no ping-pong. Ship status orthogonal to auditStatus. Artifacts under .scv/state/$RUN_ID/audit/ (gitignore).",
+    "audit": "Post-release audit: time/stability only, keep pipeline ops. No evolution redesign. No dedicated meta workers—reuse idle Claude/Codex handles with new task ids. Each agent 1 review, no ping-pong. Prefer parallel Claude∥Codex. Ship status orthogonal to auditStatus. Artifacts under .scv/state/$RUN_ID/audit/ (gitignore).",
     "reclaim": "After audit, before close: reclaim only createdByRun exact handles + orphan waiters. Never reset --all, never fuzzy match, keep coordinator tab and borrowed handles. BLOCKED: skip destructive reclaim by default.",
-    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain unread if UI stacks; heartbeat≠completion; timeout=soft recheck; parse wait stdout NDJSON line-wise; drop straggler lifecycle for non-active dispatchId",
-    "terminalIdempotent": "first create then split+rename; reuse alive (title,role); one live handle per role; dead pane never completion authority",
+    "waitMailStack": "Exactly one check --wait; types=worker_done,escalation,decision_gate only; never heartbeat in wait types; consume one msg then act; drain with type/run routing (never drop unresolved decision_gate); heartbeat≠completion; timeout=soft recheck; parse wait as JSON sequence (skip keepalive); drop straggler lifecycle for non-active per-task dispatchId",
+    "waitLivenessFusion": "No fixed sleep before wait. Open check --wait after inject; on first soft timeout recheck inject-delta; hung only at Ready-no-tools≥90s etc. Early healthy≠done. No early-hung.",
+    "terminalIdempotent": "first create then split+rename; reuse alive (title,role); one live handle per role; dead pane never completion authority; warm only next role; no far-future pool",
     "recoverySsot": "On implement resume after hang/coordinator-exception: task spec must list uncommitted SSOT paths; single edit owner only",
-    "changelog_1_3_0": "2026-07-19: coordination hygiene from login-persist audit — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended"
+    "speed": "Step-preserving only. Kill coord overhead (parser miss empty waits, fixed sleep, tab churn, serial audit). Never skip review/gates; never same-batch implement∥review; never raise maxConcurrent without evidence.",
+    "peerRuns": "Soft-observe other [scv:*] tasks; do not assume shared worktree from title alone (task-list has no branch).",
+    "changelog_1_3_0": "2026-07-19: coordination hygiene — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended",
+    "changelog_1_3_1": "2026-07-20: RPC id verb paths; wait JSON-sequence parse; per-task activeDispatch; peer soft-warn; unread routing; wait·liveness fusion; handoff latency; terminal next-role reuse; SKILL SSOT paths; run.json schema; speed rules without step changes"
   }
 }

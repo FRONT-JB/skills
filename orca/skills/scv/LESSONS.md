@@ -26,6 +26,13 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - **Audit:** time/stability only; keep pipeline; no evolution; no dedicated meta workers; ship status orthogonal.
 - **Close order:** AUDIT → RECLAIM → CLOSING → FINAL. Reclaim allowlist only; never `reset --all`.
 
+- **RPC id contract (1.3.1):** task=`result.task.id`; dispatch=`result.dispatch.id`; terminal create=`result.terminal.handle`; split=`result.split.handle`. Never root envelope `id`.
+- **Wait parse (1.3.1):** JSON sequence / line-wise + multi-value; skip keepalive; complete only `ok===true` with `result.messages` array; no whole-buffer loads.
+- **Per-task activeDispatchId** when maxConcurrent>1; never single global id for straggler filter.
+- **Unread drain:** route by type/taskId/dispatchId; never drop unresolved decision_gate.
+- **Wait·liveness fusion:** no fixed sleep 60; open wait after inject; early healthy≠done; no early-hung (90s Ready-no-tools).
+- **Speed:** step-preserving only; reuse terminals (next role only); no empty wait after consumed worker_done; measure handoff latency not raw sum of parallel task durations.
+
 ## Session log
 
 - 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
@@ -41,5 +48,8 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - 2026-07-18 — `codex exec … -a never` fails; interactive meta keeps `-a never`; exec uses `--dangerously-bypass-approvals-and-sandbox` without `-a`.
 - 2026-07-18 — **Post-run audit + reclaim:** after release, inventory + Claude/Codex (1 each) write time/stability improvements under `.scv/state/$RUN_ID/audit/`; then reclaim createdByRun terminals; then close + FINAL. Audit is **not** pack evolution. Order: AUDIT → RECLAIM → CLOSING → FINAL.
 - 2026-07-18/19 — **login-persist run audit (pack 1.3.0):** (1) `check --wait` NDJSON keepalive broke whole-buffer `json.loads` — **line-wise parse + skip `_keepalive`**. (2) Dual wait loops stole completions — **one wait owner; kill waiter only**. (3) Heartbeat stacked in UI and confused operators — wait types never include heartbeat; **unread drain**. (4) Codex self-update → shell; re-inject hit **active-dispatch stuck Ready** — post-inject 45–90s liveness; **no re-inject into stuck pane**; fresh terminal + new dispatch; treat update/shell/Ready-no-tools as hung. (5) Late worker_done/heartbeat after completed tasks — **dispatchId + completedTaskIds straggler drop**; no re-open; no spam after FINAL. (6) Duplicate plan terminals + dead pane recreate — **idempotent create**; one live handle. (7) Coordinator partial implement + resume dual ownership — resume task must list **uncommitted SSOT paths**; single edit owner. (8) Prefer `phaseEnteredAt` in run.json for next-run audit timing.
+
+
+- 2026-07-20 — **pack 1.3.1 (logic+speed, step-preserving):** (1) task-create root UUID mistaken for task id → document `result.task.id` only. (2) `terminal split` returns `result.split.handle` not `result.terminal.handle`. (3) init wait-1 keepalive+pretty mixed → whole-buffer parse miss → wait-2..12 empty ~10–16m after complete — JSON-sequence parse + stop opening wait after consumed worker_done. (4) fixed sleep 55–60 before wait → wait·liveness fusion. (5) multi-run same branch confuses UI — peer soft-warn; task-list has no worktree. (6) untyped unread can consume other-run lifecycle/gates — route messages. (7) maxConcurrent=2 needs per-task activeDispatchId. (8) speed: no review skip / no same-batch implement∥review; warm next role only; handoff latency fields. Dual Claude∥Codex re-verify of logic+speed drafts.
 
 <!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->
