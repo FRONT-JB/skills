@@ -1,60 +1,29 @@
 # scv LESSONS
 
-Run-notes for the scv orchestration mode. Read at the start of every run. Append short, dated bullets after hang/recovery or user corrections.
+Run-notes for the scv orchestration mode. Read at the start of every run.  
+**Hard rules below are the short “break-and-burn” list.** Full contracts = `PLAYBOOK.md` + `meta.json`.  
+Append short, dated bullets after hang/recovery or user corrections. Older detail → `LESSONS-archive.md`.
 
 ## Hard rules (do not erode)
 
-- Worker commands: exact strings from `meta.json` only — no invented models/flags.
-- Hang recovery: max 1 retry per role × task, then decision_gate.
-- Dispatch only task ids created in **this** run (`task-create` response). No title fuzzy match.
-- Late `worker_done` on already-completed tasks: ignore (silent dedupe after close).
-- Exactly one `check --wait` owner loop. Recovering a backgrounded waiter kills **waiter only**, never worker/task.
-- Wait types: `worker_done,escalation,decision_gate` only — **never** `heartbeat`/`status` in `--types`. Consume one message then act; drain unread if UI stacks. Heartbeat ≠ completion.
-- **NDJSON wait parse:** line-wise JSON; skip `_keepalive`/`_heartbeat`; never `json.loads` whole stream.
-- **Straggler filter:** accept lifecycle only for this-run taskId + active (or still-dispatched) dispatchId; drop stale/completed.
-- **Post-inject liveness 45–90s mandatory.** Shell / update-success / Ready-no-tools = hung. Do **not** re-inject into active-dispatch-stuck pane — fresh terminal + new dispatch.
-- **Terminal create idempotent:** reuse alive (title,role); one live handle per role after create.
-- **Recovery SSOT:** uncommitted paths listed in resume task spec; single edit owner.
-- Never stage or commit `.scv/**`.
-- Gate invent forbidden; cmds frozen at plan approval (with scope manifest).
-- P0 never becomes success; SUCCESS_WITH_ACCEPTED_RISK requires **human** decision_gate only.
-- Plan body change after approve → Codex plan-review again (no user-skip of technical review).
-- Scope expansion → user approve + plan patch + Codex re-review (no “minor skip”).
-- Docs prose language: strong default **ko** (policy P1, not finding-P0). Override via `.orca/scv.md` `docsLanguage`.
-- `task-create` uses `--task-title` + `--spec` (not `--title`).
-- **Intake prompt-first:** consume user seed; no premature option menu; free-text once if empty; RUN_ID after non-empty seed.
-- **Audit:** time/stability only; keep pipeline; no evolution; no dedicated meta workers; ship status orthogonal.
-- **Close order:** AUDIT → RECLAIM → CLOSING → FINAL. Reclaim allowlist only; never `reset --all`.
+1. Worker commands: exact `meta.json` only — no invented models/flags.
+2. Hang recovery: max 1 per role×task → then decision_gate. Never re-inject active-dispatch-stuck pane (fresh terminal + new dispatch).
+3. Dispatch only this-run task ids (`result.task.id`). Never root envelope `id`. Split handle = `result.split.handle`.
+4. Exactly one `check --wait` owner. Wait types: `worker_done,escalation,decision_gate` only (never heartbeat). Consume 1 msg then act; route unread; never drop open decision_gate.
+5. Wait parse: JSON sequence / line-wise; skip keepalive; complete only `ok===true` + `result.messages`. No whole-buffer `json.loads`. No empty wait after consumed worker_done. No fixed sleep before wait (wait·liveness fusion).
+6. Per-task `activeDispatchId` for straggler filter. Terminal create idempotent; one live handle per role; warm next role only.
+7. Recovery SSOT: uncommitted paths in resume spec; single edit owner. Never stage `.scv/**` or `git add -A`.
+8. Intake prompt-first; P0 never SUCCESS without human risk accept; scope expand = user + plan-review re-pass.
+9. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit = time/stability only (no evolution). Reclaim allowlist only; never `reset --all`.
+10. Mid-run soft reclaim (1.3.2): opt-in in-phase only; default keep; evidence escrow; no `--tab`; two-phase commit. Final RECLAIM unchanged.
 
-- **RPC id contract (1.3.1):** task=`result.task.id`; dispatch=`result.dispatch.id`; terminal create=`result.terminal.handle`; split=`result.split.handle`. Never root envelope `id`.
-- **Wait parse (1.3.1):** JSON sequence / line-wise + multi-value; skip keepalive; complete only `ok===true` with `result.messages` array; no whole-buffer loads.
-- **Per-task activeDispatchId** when maxConcurrent>1; never single global id for straggler filter.
-- **Unread drain:** route by type/taskId/dispatchId; never drop unresolved decision_gate.
-- **Wait·liveness fusion:** no fixed sleep 60; open wait after inject; early healthy≠done; no early-hung (90s Ready-no-tools).
-- **Speed:** step-preserving only; reuse terminals (next role only); no empty wait after consumed worker_done; measure handoff latency not raw sum of parallel task durations.
+## Session log (recent)
 
-- **Mid-run soft reclaim (1.3.2):** optional in-phase op (not a new phase). default=keep. exact createdByRun only. no `--tab`. evidence escrow before close. two-phase: mid_reclaiming → verify gone → mid_reclaimed. plan-review hold until first implement gate without scope expand. forbid during AUDIT/BLOCKED/open gate. keep audit Claude1+Codex1. manual close → reconcile registry, pause auto mid-run reclaim. Final AUDIT→RECLAIM unchanged.
+- 2026-07-20 — pack 1.3.2 mid-run soft reclaim (opt-in, default keep, escrow, no `--tab`).
+- 2026-07-20 — pack 1.3.1 RPC id paths, JSON-sequence wait parse, wait·liveness fusion, per-task dispatch, step-preserving speed.
+- 2026-07-18/19 — pack 1.3.0 coordination hygiene (NDJSON parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT).
+- 2026-07-18 — prompt-first intake; Korean user-facing; split panes; single wait owner; audit→reclaim order; `--task-title`.
 
-## Session log
-
-- 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
-- 2026-07-18 — **Intake clarified (prompt-first):** do not lead with estimated multi-option AskUser menu. Prefer user message as seed; if bare `/scv`, one free-text ask. RUN_ID only after non-empty seed (no orphan state).
-- 2026-07-18 — Coordinator progress narrated in English. Fix: user-facing progress/questions/FINAL must be Korean. **Extended:** committed `docs/**` prose defaults to Korean (`resolvedDocsLanguage`); policy P1 not finding-P0.
-- 2026-07-18 — Workers opened as separate tabs. Fix: first create + subsequent `terminal split` + rename.
-- 2026-07-18 — Ping-pong sessions: one handle per role; round 2+ re-dispatch only.
-- 2026-07-18 — docs-only expanded into 16-file lint fix. Fix: baseline vs acceptance; no auto-expand; scope manifest + re-review on expand.
-- 2026-07-18 — Parallel / backgrounded `check --wait`. Fix: single owner; kill **waiter only**.
-- 2026-07-18 — Coordinator froze with stacked Orchestration Messages. Fix: wait types exclude heartbeat; consume 1 msg then act; drain unread; heartbeat≠completion; Korean one-line wait status.
-- 2026-07-18 — Late mail after SUCCESS. Fix: close rules + silent dedupe; never drop unresolved decision_gate.
-- 2026-07-18 — `task-create --title` invalid → `--task-title`.
-- 2026-07-18 — `codex exec … -a never` fails; interactive meta keeps `-a never`; exec uses `--dangerously-bypass-approvals-and-sandbox` without `-a`.
-- 2026-07-18 — **Post-run audit + reclaim:** after release, inventory + Claude/Codex (1 each) write time/stability improvements under `.scv/state/$RUN_ID/audit/`; then reclaim createdByRun terminals; then close + FINAL. Audit is **not** pack evolution. Order: AUDIT → RECLAIM → CLOSING → FINAL.
-- 2026-07-18/19 — **login-persist run audit (pack 1.3.0):** (1) `check --wait` NDJSON keepalive broke whole-buffer `json.loads` — **line-wise parse + skip `_keepalive`**. (2) Dual wait loops stole completions — **one wait owner; kill waiter only**. (3) Heartbeat stacked in UI and confused operators — wait types never include heartbeat; **unread drain**. (4) Codex self-update → shell; re-inject hit **active-dispatch stuck Ready** — post-inject 45–90s liveness; **no re-inject into stuck pane**; fresh terminal + new dispatch; treat update/shell/Ready-no-tools as hung. (5) Late worker_done/heartbeat after completed tasks — **dispatchId + completedTaskIds straggler drop**; no re-open; no spam after FINAL. (6) Duplicate plan terminals + dead pane recreate — **idempotent create**; one live handle. (7) Coordinator partial implement + resume dual ownership — resume task must list **uncommitted SSOT paths**; single edit owner. (8) Prefer `phaseEnteredAt` in run.json for next-run audit timing.
-
-
-- 2026-07-20 — **pack 1.3.1 (logic+speed, step-preserving):** (1) task-create root UUID mistaken for task id → document `result.task.id` only. (2) `terminal split` returns `result.split.handle` not `result.terminal.handle`. (3) init wait-1 keepalive+pretty mixed → whole-buffer parse miss → wait-2..12 empty ~10–16m after complete — JSON-sequence parse + stop opening wait after consumed worker_done. (4) fixed sleep 55–60 before wait → wait·liveness fusion. (5) multi-run same branch confuses UI — peer soft-warn; task-list has no worktree. (6) untyped unread can consume other-run lifecycle/gates — route messages. (7) maxConcurrent=2 needs per-task activeDispatchId. (8) speed: no review skip / no same-batch implement∥review; warm next role only; handoff latency fields. Dual Claude∥Codex re-verify of logic+speed drafts.
-
-
-- 2026-07-20 — **pack 1.3.2 mid-run soft reclaim:** dual Claude∥Codex review. Adopt opt-in in-phase reclaim with evidence escrow, two-phase commit, forbid `--tab`, plan-review hold until first implement gate, default keep, audit handle reserve. Reject early plan-review kill and pre-close mid_reclaimed mark.
+Older bullets and full incident write-ups: **`LESSONS-archive.md`**.
 
 <!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->

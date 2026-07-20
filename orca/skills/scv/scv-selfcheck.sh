@@ -11,29 +11,32 @@ fail() { echo "FAIL $*"; err=1; }
 
 echo "scv self-check · root=$ROOT"
 
-# required files
+# --- files ---
 for f in PLAYBOOK.md meta.json LESSONS.md prompts/quick-command.txt prompts/quick-command.CANONICAL.txt \
   templates/plan.ko.md templates/ARCHITECTURE.ko.md SKILL.md; do
   if [[ -f "$ROOT/$f" ]]; then ok "file $f"; else fail "missing $f"; fi
 done
 
-# meta JSON
+# --- meta ---
 if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; then
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
-  [[ "$ver" == "1.3.2" ]] && ok "packVersion=$ver" || fail "packVersion want 1.3.2 got $ver"
+  [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
+  # pin: current ship version (behavior pack)
+  [[ "$ver" == "1.3.2" ]] && ok "packVersion pin 1.3.2" || fail "packVersion want 1.3.2 got $ver"
 else
   fail "meta.json invalid JSON"
+  ver=""
 fi
 
-# QC byte-identical
+# --- quick-command ---
 if cmp -s "$ROOT/prompts/quick-command.txt" "$ROOT/prompts/quick-command.CANONICAL.txt"; then
   ok "quick-command ≡ CANONICAL"
 else
   fail "quick-command drift vs CANONICAL"
 fi
 
-# PLAYBOOK must not document wrong task-create flag as primary
+# --- PLAYBOOK CLI flags ---
 if grep -n 'task-create --title ' "$ROOT/PLAYBOOK.md" | grep -v task-title >/dev/null 2>&1; then
   if grep -E 'task-create \\$|--title "' "$ROOT/PLAYBOOK.md" | grep -v task-title >/dev/null 2>&1; then
     fail "PLAYBOOK may still show task-create --title (use --task-title)"
@@ -43,14 +46,9 @@ if grep -n 'task-create --title ' "$ROOT/PLAYBOOK.md" | grep -v task-title >/dev
 else
   ok "no bare task-create --title"
 fi
+grep -q -- '--task-title' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK --task-title" || fail "PLAYBOOK missing --task-title"
 
-if grep -q -- '--task-title' "$ROOT/PLAYBOOK.md"; then
-  ok "PLAYBOOK documents --task-title"
-else
-  fail "PLAYBOOK missing --task-title"
-fi
-
-# 1.3.1 contracts in PLAYBOOK
+# --- PLAYBOOK contracts (1.3.1+) ---
 grep -q 'result.task.id' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK result.task.id" || fail "PLAYBOOK missing result.task.id"
 grep -q 'result.split.handle' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK result.split.handle" || fail "PLAYBOOK missing split handle path"
 grep -q 'wait·liveness fusion\|Wait · liveness fusion\|liveness fusion' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK wait·liveness fusion" || fail "PLAYBOOK missing wait·liveness fusion"
@@ -58,16 +56,26 @@ grep -q 'tasksById\|per-task\|per task' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK per-
 grep -q '900000\|waitTimeoutMs\|전체.*budget\|budget 가이드' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK rolling vs budget" || fail "PLAYBOOK missing budget vs rolling"
 grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK gate drain safety" || ok "PLAYBOOK gate drain (soft)"
 
-
-# 1.3.2 mid-run reclaim
+# --- PLAYBOOK mid-run reclaim (1.3.2) ---
 grep -q 'Mid-run Soft Reclaim\|mid-run soft reclaim\|8b. Mid-run' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK mid-run reclaim" || fail "PLAYBOOK missing mid-run reclaim"
 grep -q 'evidence escrow\|Evidence escrow' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK evidence escrow" || fail "PLAYBOOK missing evidence escrow"
 grep -q 'forbidTabClose\|--tab' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no --tab reclaim" || fail "PLAYBOOK missing --tab forbid"
 
-# SKILL canon + mirror
+# --- flow ---
+grep -q '문서 언어' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK 문서 언어" || fail "PLAYBOOK missing 문서 언어"
+grep -q 'Scope manifest\|scope manifest\|범위 확장' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK scope" || fail "PLAYBOOK missing scope"
+grep -q 'CLOSING\|closed' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK run close" || fail "PLAYBOOK missing run close"
+grep -q 'prompt-first\|seed prompt\|프롬프트 우선' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK prompt-first" || fail "PLAYBOOK missing prompt-first"
+grep -q 'AUDIT → RECLAIM\|AUDIT.*RECLAIM' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK audit→reclaim" || fail "PLAYBOOK missing AUDIT→RECLAIM"
+grep -q 'time \| stability\|time/stability\|time | stability' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK audit focus" || fail "PLAYBOOK missing audit time/stability"
+grep -q '고도화 금지\|forbidEvolution\|evolution' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no-evolution audit" || fail "PLAYBOOK missing evolution forbid"
+
+# --- SKILL canon + mirror ---
 if [[ -f "$SKILL_CANON" ]]; then
-  ok "canonical SKILL present ($SKILL_CANON)"
-  grep -q '1.3.2' "$SKILL_CANON" && ok "SKILL pack 1.3.2" || fail "SKILL missing 1.3.2"
+  ok "canonical SKILL present"
+  if [[ -n "${ver:-}" ]]; then
+    grep -q "$ver" "$SKILL_CANON" && ok "SKILL mentions packVersion $ver" || fail "SKILL missing packVersion $ver"
+  fi
   grep -q 'result.task.id\|RPC' "$SKILL_CANON" && ok "SKILL RPC/id" || fail "SKILL missing RPC contract"
   grep -q 'task-title' "$SKILL_CANON" && ok "SKILL task-title" || fail "SKILL missing task-title"
   grep -q 'resolvedDocsLanguage\|문서 언어' "$SKILL_CANON" && ok "SKILL docs language" || fail "SKILL missing docs language"
@@ -75,7 +83,7 @@ else
   fail "canonical SKILL missing at $SKILL_CANON"
 fi
 if [[ -f "$SKILL_MIRROR" ]]; then
-  ok "mirror SKILL present ($SKILL_MIRROR)"
+  ok "mirror SKILL present"
   if cmp -s "$SKILL_CANON" "$SKILL_MIRROR"; then
     ok "SKILL canon ≡ mirror"
   else
@@ -85,20 +93,9 @@ else
   fail "mirror SKILL missing at $SKILL_MIRROR"
 fi
 
-# worker command count in meta
+# --- meta structural (behavior pin) ---
 n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('workers',[])))")
 [[ "$n" -eq 7 ]] && ok "workers count=7" || fail "workers count=$n expected 7"
-
-# docs language notes
-grep -q '문서 언어' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK 문서 언어" || fail "PLAYBOOK missing 문서 언어"
-grep -q 'Scope manifest\|scope manifest\|범위 확장' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK scope" || fail "PLAYBOOK missing scope"
-grep -q 'CLOSING\|closed' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK run close" || fail "PLAYBOOK missing run close"
-
-# flow rules
-grep -q 'prompt-first\|seed prompt\|프롬프트 우선' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK prompt-first intake" || fail "PLAYBOOK missing prompt-first"
-grep -q 'AUDIT → RECLAIM\|AUDIT.*RECLAIM' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK audit→reclaim order" || fail "PLAYBOOK missing AUDIT→RECLAIM order"
-grep -q 'time \| stability\|time/stability\|time | stability' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK audit focus" || fail "PLAYBOOK missing audit time/stability"
-grep -q '고도화 금지\|forbidEvolution\|evolution' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no-evolution audit" || fail "PLAYBOOK missing evolution forbid"
 
 python3 -c "
 import json
@@ -116,7 +113,7 @@ assert m.get('midRunReclaim',{}).get('defaultAction')=='keep'
 assert m.get('midRunReclaim',{}).get('forbidTabClose') is True
 assert m.get('midRunReclaim',{}).get('requireEvidenceEscrow') is True
 assert m.get('midRunReclaim',{}).get('isNewPhase') is False
-" && ok "meta intake/audit/workers/1.3.2 fields" || fail "meta intake/audit/workers/1.3.2 invalid"
+" && ok "meta structural contracts" || fail "meta structural contracts invalid"
 
 if [[ $err -eq 0 ]]; then
   echo "RESULT: PASS"

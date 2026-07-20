@@ -11,7 +11,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.2** — 1.3.1 + mid-run soft reclaim(opt-in, evidence escrow, no --tab, default keep))
+- packVersion: `meta.json` 의 `packVersion` (**1.3.2**). 동작 계약 SSOT는 이 파일; 변경 이력은 `LESSONS.md` / `meta.notes.changelog_*`
 
 ## 사용자 대면 언어 (필수 · 한글)
 
