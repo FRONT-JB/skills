@@ -23,7 +23,7 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
   # pin: current ship version
-  [[ "$ver" == "1.3.3" ]] && ok "packVersion pin 1.3.3" || fail "packVersion want 1.3.3 got $ver"
+  [[ "$ver" == "1.3.4" ]] && ok "packVersion pin 1.3.4" || fail "packVersion want 1.3.4 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -56,10 +56,13 @@ grep -q 'tasksById\|per-task\|per task' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK per-
 grep -q '900000\|waitTimeoutMs\|전체.*budget\|budget 가이드' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK rolling vs budget" || fail "PLAYBOOK missing budget vs rolling"
 grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK gate drain safety" || ok "PLAYBOOK gate drain (soft)"
 
-# --- PLAYBOOK UX narration (1.3.3) ---
+# --- PLAYBOOK UX narration (1.3.4) ---
 grep -q '【 계획 작성 】' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK padded phase label" || fail "PLAYBOOK missing 【 계획 작성 】"
 grep -q '【 대기 】' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK padded wait label" || fail "PLAYBOOK missing 【 대기 】"
-grep -q 'terminalTitle\|터미널 타이틀' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK terminal titles" || fail "PLAYBOOK missing terminal titles"
+grep -q '터미널 타이틀\|terminalTitle' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK terminal titles" || fail "PLAYBOOK missing terminal titles"
+grep -q '완료 대기 (worker_done)' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK wait description Korean" || fail "PLAYBOOK missing wait description"
+grep -q 'Rolling wait' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK forbids Rolling wait" || fail "PLAYBOOK missing Rolling wait forbid"
+grep -q 'display-name' "$ROOT/PLAYBOOK.md" && grep -q '계획 작성' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK display-name Korean" || fail "PLAYBOOK missing display-name Korean"
 
 # --- PLAYBOOK mid-run reclaim (1.3.2) ---
 grep -q 'Mid-run Soft Reclaim\|mid-run soft reclaim\|8b. Mid-run' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK mid-run reclaim" || fail "PLAYBOOK missing mid-run reclaim"
@@ -117,9 +120,12 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.3'
+assert m.get('packVersion')=='1.3.4'
 assert m.get('ui',{}).get('bracketPadding')=='single-space-both-sides'
 assert m.get('ui',{}).get('terminalTitles',{}).get('plan')=='계획 작성'
+assert m.get('ui',{}).get('displayNameRequiredKorean') is True
+assert m.get('ui',{}).get('forbidWaitDescriptionEnglish') is True
+assert 'worker_done' in m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan','')
 assert m.get('intake',{}).get('mode')=='prompt-first'
 assert m.get('audit',{}).get('forbidEvolution') is True
 assert len(m.get('workers',[]))==7

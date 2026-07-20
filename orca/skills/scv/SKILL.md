@@ -14,7 +14,7 @@ description: >
 User-owned Orca mode pack for **feature shipping** (plan → implement → quality gate → code-review → release → **audit → reclaim** → FINAL).
 
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.** Engine = `orchestration` skill.  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.3**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.4**).
 
 | Role | Path |
 |------|------|
@@ -32,13 +32,11 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.3**).
 ## 사용자 대면 · 문서 언어
 
 - 진행·질문·FINAL = **한국어**. role/path/task id/CLI = 영문 허용. `scv_line` 인용만 영문 flavor.
-- **진행 내레이션 (두 줄, `scv ·` 접두 금지, `【 `·` 】` 앞뒤 공백 1칸):**
-  ```text
-  【 계획 작성 】 "SCV good to go, sir."
-  Claude가 plan.md 작성 중 — worker_done까지 대기합니다.
-  ```
-  phase 진입·dispatch·gate·blocked·FINAL 만. soft-wait/heartbeat 스팸 금지. 표 = PLAYBOOK.
-- **터미널 타이틀 = 한글 고정** (`계획 작성`, `구현`, …). create `--title` / split 직후 `rename`. 표 = PLAYBOOK.
+- **채팅 한 줄:** `**【 계획 작성 】** "SCV good to go, sir." — plan.md 작성 중 · 다음: 계획 검토`  
+  (`【 `/` 】` 공백 1칸 · `scv ·` 금지 · phase 진입만 · 표=PLAYBOOK)
+- **터미널 타이틀 / `--display-name`:** 동일 한글 라벨 (`계획 작성`, `구현` …)
+- **`--task-title`:** `[scv:$RUN_ID] 계획 작성 · <slug>`
+- **wait shell description (Tasks 패널):** `계획 작성 완료 대기 (worker_done)` — `Rolling wait…` 금지
 - 커밋 docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
 
 ## Intake (prompt-first)
@@ -88,7 +86,7 @@ preflight → seed/interview → (init?) → Claude plan
 | Mid-run reclaim | opt-in · default keep · evidence escrow · no `--tab` (PLAYBOOK §8b) |
 | Staging | never `git add -A` · never `.scv/**` |
 | P0 | never SUCCESS without human risk accept |
-| task-create | `--task-title` + `--spec` (not `--title`) · no `--model` on dispatch |
+| task-create | `--task-title` + `--display-name`(한글) + `--spec` · no `--model` on dispatch |
 
 - Track `terminals[]` (`createdByRun`/`preExisting`), `tasksById[taskId].activeDispatchId`, `completedTaskIds[]`.
 - Rolling wait **90000ms**; `waitTimeoutMs` **900000** = overall budget guide.
