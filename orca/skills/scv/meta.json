@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.6",
+  "packVersion": "1.3.7",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -49,8 +49,14 @@
   "speed": {
     "stepPreservingOnly": true,
     "waitLivenessFusion": true,
-    "terminalReuseNextRoleOnly": true,
+    "sessionReusePolicy": "same-role-same-phase-loop-only",
+    "forbidCrossRoleReuse": true,
+    "forbidCrossPhaseReuse": true,
+    "forbidIdlePickReuse": true,
+    "forbidCommandCompatibleWarm": true,
     "forbidFarWarmPool": true,
+    "phaseEndCloseDefault": true,
+    "terminalReuseNextRoleOnly": false,
     "forbidPlanParallelReview": true,
     "forbidSameBatchImplementParallelReview": true,
     "handoffLatencyFields": [
@@ -58,6 +64,8 @@
       "messageConsumedAt",
       "nextDispatchAt"
     ],
+    "fileHandoffRequired": true,
+    "handoffDir": ".scv/state/$RUN_ID/handoff/",
     "userGatePrepReadOnly": true,
     "midRunSoftReclaim": true
   },
@@ -70,17 +78,23 @@
     ],
     "forbidEvolution": true,
     "noDedicatedMetaWorkers": true,
+    "alwaysFreshSessions": true,
+    "forbidReusePriorRoleHandles": true,
+    "inputSsot": "inventory.md",
     "reviewsPerAgent": 1,
     "pingPong": false,
     "stateDir": ".scv/state/$RUN_ID/audit/",
-    "preferParallelClaudeCodex": true
+    "preferParallelClaudeCodex": true,
+    "displayNameClaude": "감사",
+    "displayNameCodex": "감사 · Codex"
   },
   "reclaim": {
     "order": "after-audit-before-close",
     "pipeline": "AUDIT → RECLAIM → CLOSING → FINAL",
     "allowOnlyCreatedByRun": true,
     "forbidResetAll": true,
-    "skipDestructiveOnBlocked": true
+    "skipDestructiveOnBlocked": true,
+    "phaseEndCloseDefault": true
   },
   "intake": {
     "mode": "prompt-first",
@@ -184,7 +198,9 @@
     "workerDoneCli": "Prefer --task-id/--dispatch-id/--files-modified/--report-path. Never combine with --payload. LIFECYCLE block required at top of every task --spec.",
     "changelog_1_3_5": "2026-07-20: structured worker_done only; UX.md extract; LIFECYCLE in specs; selfcheck anchors (orchestration behavior unchanged)",
     "humanGates": "Human decision gates: AskUser (ask_user_question) exactly once. No prose re-ask. Intake empty seed = free-text once. Coordinator Grok only.",
-    "changelog_1_3_6": "2026-07-20: AskUser-only human decision gates; no duplicate plan-approve prose (orchestration pipeline unchanged)"
+    "changelog_1_3_6": "2026-07-20: AskUser-only human decision gates; no duplicate plan-approve prose (orchestration pipeline unchanged)",
+    "sessionReuse": "same role + same phase loop → resume; cross-role/cross-phase/idle-pick/command-compatible warm FORBIDDEN; phase-end close default; file handoff; Audit always fresh",
+    "changelog_1_3_7": "2026-07-20: full session reuse policy — same-role loop only; phase-end close; Audit always fresh; file handoff (templates/handoff.md)"
   },
   "ui": {
     "narrationFormat": "**【 {phaseLabelKo} 】** \"{scvLine}\" — {summaryKo} · 다음: {nextKo}",

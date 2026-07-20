@@ -12,7 +12,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (**1.3.6**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
+- packVersion: `meta.json` 의 `packVersion` (**1.3.7**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -257,11 +257,39 @@ Orca CLI `--json` 응답은 공통 envelope 이다: 루트 `id`(RPC UUID) · `ok
 
 - direction: 기본 `vertical` · 리뷰 쌍 `horizontal`
 - **타이틀 / display-name:** 동일 한글 역할 라벨. create `--title` / split 직후 `rename` / task-create `--display-name`.
-- **핑퐁 세션 재사용:** 역할당 handle 1개. round 2+ = **같은 handle 재dispatch**. 라운드마다 새 세션 금지. 라운드 번호 시 제목만 `· 2` rename.
-- **Idempotent create (필수):** 동일 `(title, role)` 이 **alive** 이면 재사용. dead 슬롯만 교체 생성. create 직후 `terminal list/show` 로 live handle **1개** 확정 후 그 handle 만 dispatch/read/message routing. dead pane 은 completion authority 금지.
-- 중복 first-create 금지 (이중 탭 create 후 하나만 쓰기 금지 — 즉시 하나로 합치거나 dead 마킹).
-- **속도 · 재사용 (1.3.1):** 라운드마다 새 탭 create 금지(이미 규칙). **바로 다음 역할**만 command-compatible idle handle 로 준비. 먼 미래 역할 warm pool 금지(stale/Codex update 위험). implement 와 review/fix 는 **meta command 가 다르면** 같은 Codex process 로 퉁치지 말 것.
 - create/split 직후 **직렬 tui-idle 다중 wait 남발 지양** — 필요 pane 을 bounded `terminal list/show` sweep 으로 readiness 확인 가능. inject 는 단계 도달 후에만.
+
+##### 세션 재사용 정책 (필수 · pack 1.3.7 · full)
+
+> **Same role + same phase loop → resume. Anything else → fresh session + file handoff.**
+
+| 규칙 | 내용 |
+|------|------|
+| **ALLOW resume** | **동일 `role` AND 동일 phase 루프** 안 round 2+ 만. 역할당 live handle **1개**. 라운드 번호 시 제목만 `· 2` rename. 라운드마다 새 세션 **금지**. |
+| **FORBID cross-role** | role 이 바뀌면 **binary/command 가 같아도** 재사용 금지. 예: plan Claude ≠ code-review Claude · plan-review Codex ≠ implement Codex · implement Codex ≠ review-fix Codex(meta command/effort 다르면 특히). |
+| **FORBID cross-phase** | phase 경계에서 이전 role handle 에 다음 phase task inject 금지. 예: plan 계열 → implement/code-review/audit · implement → audit. |
+| **FORBID idle-pick** | “놀고 있는 Claude/Codex” 를 다음 역할·Audit 에 재할당 금지. command-compatible idle warm **금지**. |
+| **FORBID far warm pool** | 먼 미래 역할 사전 create/warm 금지 (stale / Codex update 위험). |
+| **Idempotent create** | 동일 `(title, role, phase-loop)` 이 **alive** 이고 **그 role 루프가 아직 진행 중** 일 때만 재사용. dead 슬롯만 교체. create 직후 live handle **1개** 확정. dead pane 은 completion authority 금지. |
+| **중복 create** | 이중 탭 create 후 하나만 쓰기 금지 — 즉시 하나로 합치거나 dead 마킹. |
+| **Phase-end close (기본)** | 해당 role 루프가 **terminal**(산출 MUST + worker_done 소비 + 재발화 없음) 이면 **기본 close** (exact handle · evidence escrow · mid-run `--tab` 금지 절차 준수). “default keep forever” 아님. |
+| **Hang recovery** | active-dispatch stuck → **fresh terminal** + 새 dispatch (같은 pane re-inject 금지). 기존과 동일. |
+
+**Handoff = 세션이 아니라 파일 (필수)**
+
+이전 transcript 에 의존하지 않는다. phase/role 전환 시 coordinator 가 짧은 handoff 를 state 에 쓰고, **새 세션 spec 에 경로만** 넣는다.
+
+| 전환 | handoff 최소 (`.scv/state/$RUN_ID/handoff/` 또는 기존 산출 경로) |
+|------|------|
+| plan → plan-review / plan fix 라운드 | plan 경로 · 직전 review verdict 경로 (resume 시 notes) |
+| plan 승인 → implement | 승인 plan 경로 · hash/scope/gate 동결 요약 · decisions 앵커 |
+| implement → code-review | plan 경로 · gate summary · 배치 report 경로 · 변경 범위 |
+| code-review round N→N+1 | 직전 finding · implementer notes · 재실행 gate summary (**이때만** 같은 role resume) |
+| release → AUDIT | `audit/inventory.md` (timeline · hang · reclaim · gate · 탭 이력) |
+| 템플릿 | `templates/handoff.md` — **≤40줄** · transcript 덤프 금지 |
+
+**짧은 런 예외 (opt-in · 기록 필수)**  
+docs-only / 1파일 trivial 이고 사용자가 동의하면, 단일 Claude 또는 단일 Codex 로 축약 가능. 단 **Audit 는 예외 없음**(아래). decisions 에 예외 사유 1줄.
 
 ### 3) dispatch · wait (단일 소유자)
 
@@ -347,11 +375,11 @@ orca orchestration check --wait \
 |-------|------------|
 | 1.3.1 파서로 완료 후 공회전 제거 | 리뷰/게이트 스킵, 단계 생략 |
 | wait·liveness fusion · 고정 sleep 제거 | wait timeout 단축으로 “완료 가속” 착각 |
-| 역할 핸들 재사용 · 다음 역할만 준비 | 먼 미래 warm pool · 라운드마다 새 탭 |
+| **same-role loop 만** resume · phase-end close | cross-role/cross-phase reuse · idle-pick · command-compatible warm · 먼 미래 warm pool · 핑퐁마다 새 탭 |
 | audit/리뷰 쌍 maxConcurrent=2 병렬 | plan∥plan-review, same-batch implement∥code-review |
-| 승인 대기 중 read-only 준비(branch/gate dry/다음 터미널) · **inject 금지** | 승인 전 implement dispatch |
-| handoff latency 기록 (`workerDoneAt`→`consumedAt`→`nextDispatchAt`) | 병렬 task duration 단순 합으로 overhead 음수 계산 |
-| mid-run soft reclaim (opt-in, evidence escrow) 로 죽은 pane 정리 | 재사용 예정·audit·active pane 조기 회수 · `--tab` |
+| 승인 대기 중 read-only 준비(branch/gate dry) · **다음 role terminal create 는 phase 진입 시** · inject 금지 | 승인 전 implement dispatch · 다음 역할을 idle plan pane 에 얹기 |
+| handoff latency 기록 (`workerDoneAt`→`consumedAt`→`nextDispatchAt`) + **file handoff** | 병렬 task duration 단순 합 · transcript 를 다음 세션에 통째 의존 |
+| phase-end close(기본) + mid-run soft reclaim(예외 pane) · evidence escrow | 끝난 role 을 audit 예비로 방치 · active/audit pane 조기 회수 · `--tab` |
 
 사람 승인·워커 사고 시간은 줄이지 않는다. 줄이는 대상은 **코디 오버헤드·공회전·직렬 낭비·죽은 탭**.
 
@@ -363,7 +391,8 @@ orca orchestration check --wait \
 - RPC envelope 루트 `id` 를 taskId 로 사용 · `terminal split` 을 `result.terminal.handle` 로 오파싱
 - completed/stale `dispatchId` 메일을 현재 완료로 처리 · 전역 단일 activeDispatchId 로 병렬 정상 dispatch 를 straggler 처리
 - active-dispatch stuck 에 같은 pane re-inject 반복
-- 라운드마다 새 세션 create → inject 폭증 · 먼 미래 역할 warm pool
+- 핑퐁(same-role) 라운드마다 새 세션 create → inject 폭증 · 먼 미래 역할 warm pool
+- **cross-role / cross-phase handle 재사용** · command-compatible idle warm · 놀고 있는 pane 에 다른 역할 inject
 - worker_done 을 읽지 않고 “메시지 있음” 만 반복 표시
 - 미소비 메일 N건을 한 화면에 쌓아 두고 파이프라인 정지
 - 무타입 unread drain 후 decision_gate/다른 런 worker_done 유실
@@ -488,16 +517,17 @@ phase: AUDIT
 | **stability** | hang, late mail, gate 유실, waiter 중복, reclaim, CLI 실수 등 |
 | **제외** | 단계/역할 재설계, 교차검증 위상 변경, 라운드 상한·gate 3겹 약화, 모델 다운 강요, 앱 코드 리팩터, playbook 전면 개편 |
 
-**워커**
+**워커 · 세션 (pack 1.3.7)**
 
-- **meta에 audit 전용 역할 추가 금지** (workers 7 유지).
-- 기존 유휴 Claude / Codex handle에 **이번 런 새 task-create** 로 재dispatch.
-- handle 없으면 최소 create/split 1회 · `createdByRun: true` 기록.
+- **meta에 audit 전용 역할 추가 금지** (workers 7 유지). 표시 라벨만 `감사`(Claude) / `감사 · Codex` — UX.md.
+- **Audit = always fresh:** plan/implement/code-review/review-fix 등 **기존 role handle 재사용 금지**. Claude 1 + Codex 1 을 **AUDIT phase 진입 시 새로 create/split** (`createdByRun: true`). idle-pick 금지.
+- 입력 SSOT = **`audit/inventory.md` only** (+ 필요 시 handoff 경로 목록). 이전 role transcript·plan 핑퐁 맥락에 의존 금지.
 - ownership: **artifact-write-only**  
   - Claude → `audit/claude.md` 만  
   - Codex → `audit/codex.md` 만  
   - `inventory.md` / `improvements.md` / `reclaim-log.md` = **coordinator 단독**
 - 소스·docs 수정 금지. audit 리뷰 **핑퐁 금지** (각 1회).
+- AUDIT 시작 전: 불필요 edit 워커는 phase-end close 로 정리. Audit 진행 중 그 두 handle 만 유지.
 
 **산출** (`.scv/state/$RUN_ID/audit/`, 기본 비커밋)
 
@@ -521,36 +551,42 @@ phase: AUDIT
 **audit skip:** 사용자 **명시 요청** + decisions 기록만 (overlay `audit: false` 일반 경로 금지).
 
 
-#### 8b. Mid-run Soft Reclaim (optional operation · pack 1.3.2)
+#### 8b. Phase-end close + Mid-run Soft Reclaim (pack 1.3.7 / 1.3.2)
 
-**새 phase/step 아님.** 현재 phase 안에서 코디네이터가 수행하는 **opt-in 터미널 위생**이다.  
-말미 `AUDIT → RECLAIM → CLOSING → FINAL` 을 대체하지 않는다.
+**새 pipeline step 아님.** coordinator 의 터미널 위생. 말미 `AUDIT → RECLAIM → CLOSING → FINAL` 을 대체하지 않는다.
+
+| 종류 | 기본 | 용도 |
+|------|------|------|
+| **Phase-end close** | **기본 on** (1.3.7) | role 루프 terminal 확정 후 해당 handle 정리 → 다음 phase 는 fresh |
+| **Mid-run soft reclaim** | 예외 pane / 죽은 탭 | hang 잔여·오생성 pane · evidence escrow 후 정리 |
 
 ##### 원칙 (Hard)
 
 | # | 규칙 |
 |---|------|
 | 1 | SSOT = disk 산출 + orchestration state + git. pane scrollback 이 아님 |
-| 2 | **default = keep.** 불확실·BLOCKED·미해결 `decision_gate`·unrouted lifecycle → **회수 금지** |
+| 2 | **Phase-end:** role 루프 terminal + 재발화 없음 → **close 기본**. **불확실·BLOCKED·미해결 `decision_gate`·unrouted lifecycle·same-role 라운드 진행 중** → 회수 금지 |
 | 3 | `createdByRun: true` · `!preExisting` · **exact handle only**. coordinator/borrowed 금지 |
 | 4 | 해당 handle 에 연결된 this-run task 가 **모두 terminal** · active dispatch 없음 (`dispatch-show --task`, per-task map) |
 | 5 | worker_done 미소비 · open human gate → 회수 금지 |
-| 6 | **AUDIT 중 회수 금지.** audit 재사용용 Claude≥1 · Codex≥1 capability 유지 권장 |
+| 6 | **AUDIT 중** audit 전용 fresh handle 2개 회수 금지. 다른 edit 워커는 AUDIT **전**에 close 완료 |
 | 7 | fuzzy title · worktree-wide stop · **`reset --all`** · mid-run **`terminal close --tab`** 금지 (sibling/coordinator 오종료) |
 | 8 | close 전 **evidence escrow** (비밀 제외 bounded preview/error/liveness digest + artifact paths) 없으면 회수 금지 |
+| 9 | close 한 handle 을 이후 role/Audit 에 **부활 inject 금지** — 필요 시 새 create |
 
 ##### 회수 가능 시점 (eligibility — milestone 이름만 보지 말 것)
 
-| 조건 | 회수 후보 | 유지 |
-|------|-----------|------|
-| plan **승인+hash/scope/gate 동결** 후에도 plan 핑퐁·§3b 범위 확장 가능성 | — | **plan-review 는 첫 implement batch 가 범위 확장 없이 gate PASS 할 때까지 유지** |
-| 위 implement gate 통과 + plan 역할 재발화 없음 | plan Claude, plan-review Codex | implement / 다음 code-review |
-| code-review round 종료 확정 (P0+P1=0, 추가 round 불필요) | 해당 round 전용으로만 쓰이던 handle (역할당 1 handle 재사용 규칙상 드묾) | 다음 round·release·audit 후보 |
-| AUDIT 전 | 불필요 edit 워커 | **Claude 1 + Codex 1** audit capability |
-| AUDIT 중 / BLOCKED / incident 조사 | **금지** | 관련 pane |
+| 조건 | 회수( close ) 후보 | 유지 |
+|------|-------------------|------|
+| plan **승인+hash/scope/gate 동결** · plan 작성 Claude 재발화 없음 | **plan Claude** (phase-end) | **plan-review** 는 첫 implement batch 가 범위 확장 없이 gate PASS 할 때까지 (§3b 가능 시) |
+| 첫 implement batch gate PASS · plan 역할 재발화 없음 | **plan-review Codex** (+ 아직 남은 plan Claude) | implement · (다음) code-review **새** handle |
+| implement 배치 완료 · code-review 루프 시작 전 | implement 를 당장 안 쓰이면 close 가능 · **review-fix 미생성 상태 유지** | code-review 는 **fresh Claude** |
+| code-review round 종료 확정 (P0+P1=0, 추가 round 불필요) | code-review Claude · review-fix Codex (phase-end) | release / **Audit 는 새 handle** |
+| AUDIT 직전 | 모든 잔여 edit 워커 | **fresh** Claude 감사 + Codex 감사 only |
+| AUDIT 중 / BLOCKED / incident 조사 | **금지**(audit 쌍) | audit 관련 pane |
 
-역할당 handle 1개 재사용이 기본이므로 “round 전용 핸들”을 가정하지 말 것.  
-**task graph · scope-expansion 가능성 · role command · audit reserve** 로 판단.
+same-role 핑퐁 중에는 “round 전용 핸들”이 아니라 **역할당 1 handle resume**.  
+phase 가 바뀌면 **새 handle + file handoff** — task graph · scope-expansion · role command 로 판단.
 
 ##### 절차 (two-phase commit)
 
@@ -806,17 +842,19 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 - completed/stale dispatchId 의 late worker_done 으로 파이프라인 재오픈
 - closed 런의 **미해결** decision_gate 무시
 - FINAL 후 late mail 반복 고지
-- 워커마다 새 탭 create · 핑퐁마다 새 세션 · 동일 role 중복 create
+- 워커마다 불필요 새 탭 create · **same-role 핑퐁마다** 새 세션 · 동일 role 중복 create
+- **cross-role / cross-phase 세션 재사용** · idle Claude/Codex 를 Audit·다음 역할에 재할당 · command-compatible warm
 - Codex update/shell/Ready 공회전에 같은 pane re-inject 반복
 - recovery 시 coordinator + worker **이중 편집** (SSOT uncommitted 목록 없이)
 - Hangul 비율만으로 문서 언어 gate 확정
 - `READY_TO_PUSH`를 gate 실패 수용 상태로 오용
 - `codex exec`에 인터랙티브 `-a never` 사용
 - audit로 **파이프라인 고도화/재설계** 제안 (time/stability only)
-- audit 전용 meta worker 추가 · audit 핑퐁
+- audit 전용 meta worker 추가 · audit 핑퐁 · **기존 plan/implement 세션에 audit inject**
 - audit 실패로 ship SUCCESS를 BLOCKED로 강등
 - reclaim 시 `reset --all` · 퍼지 handle close · borrowed pane 강제 종료
 - FINAL 전에 audit/reclaim 없이 closed (사용자 명시 skip 제외)
+- phase-end 인데 끝난 role 탭을 “나중 audit용”으로 방치
 - RPC root `id` 를 taskId 로 사용 · split handle 경로 오인
 - 고정 sleep liveness · 완료 후 빈 wait 창 반복
 - 무타입 unread 로 미해결 decision_gate 유실

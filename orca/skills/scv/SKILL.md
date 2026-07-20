@@ -16,7 +16,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.**  
 **표시 연출 SSOT = `$HOME/.orca/scv/UX.md`.**  
 **Engine = `orchestration` skill** (`worker_done` structured flags only).  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.6**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.7**).
 
 | Role | Path |
 |------|------|
@@ -75,7 +75,7 @@ preflight → seed/interview → (init?) → Claude plan
   → Codex implement → quality gate
   → Claude code-review ↔ Codex fix ≤3
   → release 7a/7b
-  → AUDIT (inventory + Claude∥Codex time/stability · no evolution)
+  → AUDIT (**fresh** Claude∥Codex · inventory only · time/stability · no evolution)
   → RECLAIM (createdByRun only)
   → CLOSING → closed → FINAL
 ```
@@ -87,6 +87,16 @@ preflight → seed/interview → (init?) → Claude plan
 | plan | Claude | Codex |
 | code | Codex | Claude |
 
+### Session reuse (pack 1.3.7)
+
+| | |
+|--|--|
+| **Resume** | same role + same phase loop (round 2+) only |
+| **Fresh** | cross-role · cross-phase · Audit · hang recovery |
+| **Close** | phase-end default when role loop terminal |
+| **Handoff** | file only (`templates/handoff.md`) — not transcript |
+| **Forbid** | idle-pick · command-compatible warm · far warm pool |
+
 ### Hard rules (summary — details in PLAYBOOK)
 
 | Rule | Value |
@@ -96,7 +106,7 @@ preflight → seed/interview → (init?) → Claude plan
 | Wait | one `check --wait` · types=`worker_done,escalation,decision_gate` · never heartbeat |
 | worker_done | structured flags only · LIFECYCLE in every `--spec` · success once |
 | Hang | max 1 per role×task · never re-inject stuck pane |
-| Speed | step-preserving · next-role warm only |
+| Session | same-role loop resume only · phase-end close · Audit always fresh |
 | Close | **AUDIT → RECLAIM → CLOSING → FINAL** |
 | Staging | never `git add -A` · never `.scv/**` |
 | task-create | `--task-title` + `--display-name`(한글) + `--spec` |
@@ -126,3 +136,4 @@ preflight → seed/interview → (init?) → Claude plan
 - `--payload` + structured flags together; second worker_done after success
 - Whole-buffer wait parse; root RPC `id` as taskId; re-inject stuck pane
 - Audit as evolution; `git add -A`; same-batch implement∥code-review
+- Cross-role/cross-phase session reuse; idle-pick for Audit; plan pane as code-review

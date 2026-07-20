@@ -24,7 +24,7 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
-  [[ "$ver" == "1.3.6" ]] && ok "packVersion pin 1.3.6" || fail "packVersion want 1.3.6 got $ver"
+  [[ "$ver" == "1.3.7" ]] && ok "packVersion pin 1.3.7" || fail "packVersion want 1.3.7 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -108,8 +108,15 @@ grep -q 'Ready-no-tools' "$ROOT/PLAYBOOK.md" && grep -q '≥90s' "$ROOT/PLAYBOOK
   && ok "PLAYBOOK Ready-no-tools ≥90s" || fail "PLAYBOOK missing Ready-no-tools ≥90s"
 grep -q 're-inject 금지' "$ROOT/PLAYBOOK.md" \
   && ok "PLAYBOOK no re-inject stuck pane" || fail "PLAYBOOK missing re-inject forbid"
-grep -q '바로 다음 역할' "$ROOT/PLAYBOOK.md" && grep -q 'warm pool' "$ROOT/PLAYBOOK.md" \
-  && ok "PLAYBOOK warm next role only" || fail "PLAYBOOK missing warm next-role"
+grep -q 'Same role + same phase loop\|same role + same phase' "$ROOT/PLAYBOOK.md" \
+  && grep -q 'FORBID cross-role\|cross-role' "$ROOT/PLAYBOOK.md" \
+  && grep -q 'warm pool' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK session reuse policy 1.3.7" || fail "PLAYBOOK missing session reuse policy"
+grep -q 'Audit = always fresh\|always fresh' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK audit always fresh" || fail "PLAYBOOK missing audit always fresh"
+grep -q 'Phase-end close\|phase-end close' "$ROOT/PLAYBOOK.md" \
+  && ok "PLAYBOOK phase-end close" || fail "PLAYBOOK missing phase-end close"
+test -f "$ROOT/templates/handoff.md" && ok "handoff template present" || fail "missing templates/handoff.md"
 grep -q 'NDJSON' "$ROOT/PLAYBOOK.md" && grep -q '_keepalive' "$ROOT/PLAYBOOK.md" \
   && ok "PLAYBOOK NDJSON/keepalive parse" || fail "PLAYBOOK missing NDJSON parse anchors"
 grep -q 'mid_reclaiming' "$ROOT/PLAYBOOK.md" && grep -q 'mid_reclaimed' "$ROOT/PLAYBOOK.md" \
@@ -160,7 +167,7 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.6'
+assert m.get('packVersion')=='1.3.7'
 assert m.get('ui',{}).get('bracketPadding')=='single-space-both-sides'
 assert m.get('ui',{}).get('terminalTitles',{}).get('plan')=='계획 작성'
 assert m.get('ui',{}).get('displayNameRequiredKorean') is True
@@ -170,10 +177,19 @@ assert m.get('ui',{}).get('lifecycleSpecRequired') is True
 assert 'worker_done' in m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan','')
 assert m.get('intake',{}).get('mode')=='prompt-first'
 assert m.get('audit',{}).get('forbidEvolution') is True
+assert m.get('audit',{}).get('alwaysFreshSessions') is True
+assert m.get('audit',{}).get('forbidReusePriorRoleHandles') is True
 assert len(m.get('workers',[]))==7
 assert m.get('wait',{}).get('forbidHeartbeatInWaitTypes') is True
 assert m.get('rpcIdPaths',{}).get('forbidRootIdAsTaskId') is True
 assert m.get('speed',{}).get('stepPreservingOnly') is True
+assert m.get('speed',{}).get('forbidCrossRoleReuse') is True
+assert m.get('speed',{}).get('forbidCrossPhaseReuse') is True
+assert m.get('speed',{}).get('forbidIdlePickReuse') is True
+assert m.get('speed',{}).get('forbidCommandCompatibleWarm') is True
+assert m.get('speed',{}).get('phaseEndCloseDefault') is True
+assert m.get('speed',{}).get('fileHandoffRequired') is True
+assert m.get('speed',{}).get('terminalReuseNextRoleOnly') is False
 assert m.get('waitRollingTimeoutMs')==90000
 assert m.get('waitTimeoutMs')==900000
 assert m.get('midRunReclaim',{}).get('defaultAction')=='keep'
