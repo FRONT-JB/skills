@@ -16,7 +16,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.**  
 **표시 연출 SSOT = `$HOME/.orca/scv/UX.md`.**  
 **Engine = `orchestration` skill** (`worker_done` structured flags only).  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.5**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.6**).
 
 | Role | Path |
 |------|------|
@@ -39,6 +39,7 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.5**).
 - 탭 / `--display-name` 한글 · `--task-title` `[scv:$RUN_ID] 한글 · slug`
 - wait description: `계획 작성 완료 대기 (worker_done)` · `Rolling wait…` 금지
 - docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
+- **Human decision gate = AskUser 1회** (plan 승인·범위 확장·P0/P1·push·reclaim…). 본문 선택지 재질문 금지. bare seed는 free-text 1회.
 
 ## worker_done (엔진 · 필수)
 
@@ -99,6 +100,7 @@ preflight → seed/interview → (init?) → Claude plan
 | Close | **AUDIT → RECLAIM → CLOSING → FINAL** |
 | Staging | never `git add -A` · never `.scv/**` |
 | task-create | `--task-title` + `--display-name`(한글) + `--spec` |
+| Human gate | **AskUser 1회** · prose re-ask 금지 · intake empty = free-text |
 
 - Rolling wait **90000ms**; `waitTimeoutMs` **900000** = overall budget guide.
 

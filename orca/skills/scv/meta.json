@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.5",
+  "packVersion": "1.3.6",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -182,7 +182,9 @@
     "changelog_docs_hygiene": "2026-07-20: tooling+docs slim (LESSONS hard list, quick-command, SKILL, pack pointer, notes, sync-from-source, selfcheck) — orchestration behavior unchanged",
     "uxSsot": "Display SSOT = UX.md + meta.ui. Behavior SSOT = PLAYBOOK.md. Engine worker_done CLI = orchestration skill structured flags only.",
     "workerDoneCli": "Prefer --task-id/--dispatch-id/--files-modified/--report-path. Never combine with --payload. LIFECYCLE block required at top of every task --spec.",
-    "changelog_1_3_5": "2026-07-20: structured worker_done only; UX.md extract; LIFECYCLE in specs; selfcheck anchors (orchestration behavior unchanged)"
+    "changelog_1_3_5": "2026-07-20: structured worker_done only; UX.md extract; LIFECYCLE in specs; selfcheck anchors (orchestration behavior unchanged)",
+    "humanGates": "Human decision gates: AskUser (ask_user_question) exactly once. No prose re-ask. Intake empty seed = free-text once. Coordinator Grok only.",
+    "changelog_1_3_6": "2026-07-20: AskUser-only human decision gates; no duplicate plan-approve prose (orchestration pipeline unchanged)"
   },
   "ui": {
     "narrationFormat": "**【 {phaseLabelKo} 】** \"{scvLine}\" — {summaryKo} · 다음: {nextKo}",
@@ -211,7 +213,11 @@
     },
     "uxDoc": "$HOME/.orca/scv/UX.md",
     "lifecycleSpecRequired": true,
-    "workerDoneStructuredOnly": true
+    "workerDoneStructuredOnly": true,
+    "humanGateUi": "ask_user_question",
+    "humanGateExactlyOnce": true,
+    "forbidProseReaskAfterAskUser": true,
+    "intakeEmptySeed": "free-text-once"
   },
   "midRunReclaim": {
     "enabled": true,

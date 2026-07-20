@@ -12,7 +12,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (**1.3.5**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
+- packVersion: `meta.json` 의 `packVersion` (**1.3.6**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -27,6 +27,65 @@ coordinator 진행·질문·FINAL = **한국어**. role/path/task id/CLI 영문 
 | `--task-title` | `[scv:$RUN_ID] 한글 phase · slug` |
 | wait shell description | `계획 작성 완료 대기 (worker_done)` · `Rolling wait…` 금지 |
 | 발화 시점 | phase 진입·dispatch·gate·blocked·FINAL 만 (soft-wait 스팸 금지) |
+| **사람 결정 게이트** | **AskUser 정확히 1회** (아래 절) · 본문 선택지 재질문 금지 |
+
+## Human decision gates · AskUser (필수 · pack 1.3.6)
+
+Grok 팀장 세션의 **`ask_user_question` (AskUser)** 가 사람 확인 UI다.
+
+### 적대 검증 요약 (왜 이 규칙인가)
+
+| 우려 | 판정 |
+|------|------|
+| intake “추정 메뉴 선제 금지”와 충돌? | **아니오** — bare seed free-text와 **결정 게이트**는 분리 |
+| 모든 채팅을 메뉴로? | **아니오** — 선택/승인/중단이 있는 게이트만 |
+| 수정 내용 장문? | AskUser로 **모드** 선택 후 free-text (수정 본문은 Other/후속 메시지) |
+| Orca `decision_gate`와 이중 질문? | AskUser = **유일한 질문 UI** · Orca gate/`decisions.md`는 추적 기록(채팅 재질문 금지) |
+| 워커(Claude/Codex) AskUser? | **아니오** — 사람 게이트는 **coordinator(Grok) only** |
+
+### 필수 AskUser (human decision gate)
+
+다음에서는 **AskUser를 정확히 1회** 호출한다. 같은 선택지를 채팅 본문에 bullet/문장으로 **다시 쓰지 않는다**.
+
+| 게이트 | 대표 옵션 (권장 첫 항) |
+|--------|------------------------|
+| plan → implement 승인 | 승인 · 수정 요청 · 중단 |
+| 범위 확장 (§3b) | 원범위 완료 · 후속 분리 · 현 런 편입 |
+| P0 / P1 risk accept | 위험 수용 · 수정 후 재개 · 중단 |
+| dirty worktree / 보호 브랜치 | 안내 후 선택 (커밋 분리·stash·중단 등) |
+| push / 릴리스 최종 확인 | push 진행 · 보류 · 중단 |
+| mid-run reclaim opt-in | 회수 · 유지 |
+| hang 포기·재배정 (사람 결정) | 재시도/재배정 · 중단 |
+
+### AskUser 금지 · 예외 (free-text / 비게이트)
+
+| 상황 | UI |
+|------|-----|
+| bare `/scv` · empty seed | **free-text 1회** (추정 옵션 메뉴 선제 금지 — 기존 intake) |
+| “수정 요청” 선택 후 변경점 서술 | free-text (AskUser 직후) |
+| 정보성 진행 내레이션 | UX 한 줄만 · 선택지 없음 |
+| worker_done 대기 | `check --wait` · AskUser 아님 |
+
+### 출력 순서 (중복 금지)
+
+```text
+1) 요약·표·경로 (정보)
+2) 선택: UX 라벨 한 줄 (질문 문장 없이)
+   예: **【 계획 승인 대기 】** "Orders, Cap'n?" — plan-review APPROVED · 승인 대기
+3) AskUser 1회 (승인 / 수정 요청 / 중단 …)
+4) 금지: "이 계획으로 구현을 진행할까요?" 를 본문에 다시 쓰기
+5) 답 수신 전 implement dispatch / push / 파괴적 동작 금지
+6) 답 → decisions.md 또는 run 상태 기록 · 필요 시 Orca gate resolve (채팅 재질문 없이)
+```
+
+### plan 승인 게이트 (대표)
+
+plan-review 최종 APPROVED(또는 동등) 후 implement 전:
+
+1. 요약 표 + 리포트/plan 경로  
+2. UX 라벨 0~1줄 (재질문 없음)  
+3. **AskUser 1회** — 승인(Recommended) / 수정 요청 / 중단  
+4. 승인 시에만: plan 로컬 커밋 + hash/scope/gate 동결 → implement  
 
 ## 문서 언어 (강한 기본값 · 정책)
 
@@ -338,10 +397,11 @@ Goal → gstack 인터뷰 → brief: `.scv/state/$RUN_ID/brief/plan-brief.md`
 #### 3. plan 리뷰 핑퐁 (≤2)
 
 - Codex plan-review ↔ Claude plan fix
+- **사용자 plan 승인 = AskUser 1회** (위 Human decision gates). 본문 선택지 중복 금지.
 - 승인 시: plan 로컬 커밋 + **content hash + scope manifest + gate 동결** → `plan-refine/decisions.md`
 - 승인 후 plan 본문/hash/scope/gate 변경: 승인 무효 → **Codex plan-review 재통과** → 재커밋 + 재동결.  
   **재승인만으로 기술 리뷰 우회 금지. skip 경로 없음.**
-- 사용자 plan 승인 후 implement
+- AskUser **승인** 후에만 implement
 
 #### 3b. 범위 확장 decision_gate
 
@@ -353,8 +413,8 @@ Goal → gstack 인터뷰 → brief: `.scv/state/$RUN_ID/brief/plan-brief.md`
 
 **범위 확장 판정:** 승인 scope manifest의 paths · 파일 수 상한 · 변경 종류 · frozen gate 중 **하나라도** 벗어나면 즉시 중단.
 
-사용자 gate 페이로드: 원인 · 추가 범위 · 예상 파일 수 · 대안  
-(`원범위 완료` / `후속 분리` / `현 런 편입`) · 위험.
+사용자 gate: **AskUser 1회** 옵션 = `원범위 완료` / `후속 분리` / `현 런 편입`  
+(원인·추가 범위·예상 파일 수·위험은 요약 본문에 먼저 제시 · 질문 재서술 금지).
 
 - **현 런 편입:** 사용자 승인 **AND** plan 패치 **AND** Codex plan-review 재통과 **AND** hash/scope/gate 재동결 — 그 전 파일 수정 재개 금지.
 - **후속 분리:** scope 밖 변경 0 · known debt만 기록.
@@ -728,6 +788,8 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 - seed 있는 메시지를 무시하고 다시 「무엇을 ship할까요?」만 물음
 - bare `/scv` 만으로 orphan RUN_ID/state 생성
 - 사용자 대면 진행 영어 only · `【scv · …】` 접두 · soft-wait/heartbeat 마다 대사 스팸
+- human decision gate를 본문 선택지로만 묻고 AskUser 생략 · 같은 게이트 질문 2회
+- bare `/scv` empty seed에 추정 AskUser 메뉴 선제 (free-text 1회 규칙 위반)
 - 터미널 타이틀 영문 slug only · split 후 rename 누락 · 타이틀로 task 퍼지 매칭
 - `--display-name` 영문 only (`scv-plan` 등) · `--task-title` 에 한글 phase 누락
 - wait shell description 영문 only (`Rolling wait for plan worker_done` 등)

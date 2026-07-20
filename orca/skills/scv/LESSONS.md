@@ -17,10 +17,12 @@ Engine lifecycle send = orchestration skill. Append short, dated bullets after h
 9. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit = time/stability only. Never `reset --all`.
 10. Mid-run soft reclaim: opt-in; default keep; evidence escrow; no `--tab`; two-phase. Final RECLAIM unchanged.
 11. **worker_done/heartbeat:** structured flags only (`--task-id` + `--dispatch-id` …). **Never** `--payload` with those flags. Success once; CLI "not both" → fix & retry once. Spec top: LIFECYCLE block (PLAYBOOK).
-12. **UX:** one-line chat + Korean display-name/tab + wait description (`계획 작성 완료 대기 (worker_done)`). Tables = `UX.md` / `meta.ui`. No soft-wait spam.
+12. **UX:** one-line chat + Korean display-name/tab + wait description. Tables = `UX.md` / `meta.ui`. No soft-wait spam.
+13. **Human gates:** AskUser exactly once (plan approve, scope expand, P0/P1 risk, push, reclaim opt-in, …). No prose re-ask. Intake empty seed stays free-text once (no premature menu).
 
 ## Session log (recent)
 
+- 2026-07-20 — pack 1.3.6: human decision gates = AskUser once; no duplicate prose questions (behavior pipeline unchanged).
 - 2026-07-20 — pack 1.3.5: structured worker_done only; UX.md split; LIFECYCLE in task specs (orchestration behavior unchanged).
 - 2026-07-20 — pack 1.3.4 UX: one-line narration + Korean task/display + wait shell descriptions.
 - 2026-07-20 — pack 1.3.3 UX: SCV dialogue lines + Korean terminal titles.

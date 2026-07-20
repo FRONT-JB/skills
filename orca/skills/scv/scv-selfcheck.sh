@@ -24,7 +24,7 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
-  [[ "$ver" == "1.3.5" ]] && ok "packVersion pin 1.3.5" || fail "packVersion want 1.3.5 got $ver"
+  [[ "$ver" == "1.3.6" ]] && ok "packVersion pin 1.3.6" || fail "packVersion want 1.3.6 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -57,7 +57,7 @@ grep -q 'tasksById\|per-task\|per task' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK per-
 grep -q '900000\|waitTimeoutMs\|전체.*budget\|budget 가이드' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK rolling vs budget" || fail "PLAYBOOK missing budget vs rolling"
 grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK gate drain safety" || ok "PLAYBOOK gate drain (soft)"
 
-# --- UX (1.3.5 · display SSOT) ---
+# --- UX (1.3.6 · display SSOT) ---
 grep -q 'UX.md' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK points to UX.md" || fail "PLAYBOOK missing UX.md pointer"
 grep -q '【 계획 작성 】' "$ROOT/UX.md" && ok "UX padded phase label" || fail "UX missing 【 계획 작성 】"
 grep -q '【 대기 】' "$ROOT/UX.md" && ok "UX padded wait label" || fail "UX missing 【 대기 】"
@@ -65,10 +65,12 @@ grep -q '완료 대기 (worker_done)' "$ROOT/UX.md" && ok "UX wait description K
 grep -q 'Rolling wait' "$ROOT/UX.md" && ok "UX forbids Rolling wait" || fail "UX missing Rolling wait forbid"
 grep -q 'display-name' "$ROOT/UX.md" && grep -q '계획 작성' "$ROOT/UX.md" && ok "UX display-name Korean" || fail "UX missing display-name Korean"
 
-# --- worker_done structured (1.3.5) ---
+# --- worker_done structured (1.3.6) ---
 grep -q 'LIFECYCLE' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK LIFECYCLE block" || fail "PLAYBOOK missing LIFECYCLE"
 grep -q '\-\-task-id' "$ROOT/PLAYBOOK.md" && grep -q '\-\-dispatch-id' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK structured worker_done CLI" || fail "PLAYBOOK missing structured send"
 grep -q 'not both\|동시 사용' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK forbids payload+structured mix" || fail "PLAYBOOK missing not-both rule"
+grep -q 'AskUser' "$ROOT/PLAYBOOK.md" && grep -q 'Human decision' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK AskUser human gates" || fail "PLAYBOOK missing AskUser gates"
+grep -q '재질문 금지\|prose re-ask\|본문 선택지' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no prose re-ask" || fail "PLAYBOOK missing no re-ask"
 
 # --- orchestration skill (engine) ---
 if [[ -f "$ORCH_SKILL" ]]; then
@@ -158,7 +160,7 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.5'
+assert m.get('packVersion')=='1.3.6'
 assert m.get('ui',{}).get('bracketPadding')=='single-space-both-sides'
 assert m.get('ui',{}).get('terminalTitles',{}).get('plan')=='계획 작성'
 assert m.get('ui',{}).get('displayNameRequiredKorean') is True
