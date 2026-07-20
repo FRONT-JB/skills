@@ -1,4 +1,0 @@
-interface:
-  display_name: "Zealot"
-  short_description: "Claude-led Grok-free supervised shipping pipeline"
-  default_prompt: "Use $zealot when the user explicitly enters /zealot to run the supervised plan, implementation, review, audit, and release pipeline."

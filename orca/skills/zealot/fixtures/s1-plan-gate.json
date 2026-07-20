@@ -1,8 +1,0 @@
-{
-  "scenario": "plan approval gate before implementation",
-  "gateId": "plan_approve",
-  "gateStatus": "unresolved",
-  "planReviewVerdict": "APPROVED",
-  "implementDispatchCount": 0,
-  "expected": "no-dispatch-until-PLAN_APPROVED"
-}
