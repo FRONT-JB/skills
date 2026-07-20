@@ -1,0 +1,77 @@
+scv_check_id	exclude_reason	short_what
+scv-selfcheck.sh:19:file-f		file $f
+scv-selfcheck.sh:24:meta-json-parses		meta.json parses
+scv-selfcheck.sh:26:packversion-ver		packVersion=$ver
+scv-selfcheck.sh:27:packversion-pin-1-3-9		packVersion pin 1.3.9
+scv-selfcheck.sh:29:meta-json-invalid-json		meta.json invalid JSON
+scv-selfcheck.sh:35:quick-command-canonical		quick-command ≡ CANONICAL
+scv-selfcheck.sh:37:quick-command-drift-vs-canonical		quick-command drift vs CANONICAL
+scv-selfcheck.sh:40:quick-command-still-recommends-worker-done-in-wait-d		quick-command still recommends (worker_done) in wait desc
+scv-selfcheck.sh:42:quick-command-wait-desc-no-engine-parens		quick-command wait desc no engine parens
+scv-selfcheck.sh:45:quick-command-has-user-engine-labels		quick-command has user engine labels
+scv-selfcheck.sh:47:quick-command-missing-labels		quick-command missing 작업 완료 / 생존 신호 labels
+scv-selfcheck.sh:53:playbook-may-still-show-task-create-title-use-task-t		PLAYBOOK may still show task-create --title (use --task-title)
+scv-selfcheck.sh:55:task-create-flag-check-soft		task-create flag check (soft)
+scv-selfcheck.sh:58:no-bare-task-create-title		no bare task-create --title
+scv-selfcheck.sh:60:playbook-task-title		PLAYBOOK --task-title
+scv-selfcheck.sh:63:playbook-result-task-id		PLAYBOOK result.task.id
+scv-selfcheck.sh:64:playbook-result-split-handle		PLAYBOOK result.split.handle
+scv-selfcheck.sh:65:playbook-wait-liveness-fusion		PLAYBOOK wait·liveness fusion
+scv-selfcheck.sh:66:playbook-per-task-dispatch		PLAYBOOK per-task dispatch
+scv-selfcheck.sh:67:playbook-rolling-vs-budget		PLAYBOOK rolling vs budget
+scv-selfcheck.sh:68:playbook-gate-drain-safety		PLAYBOOK gate drain safety
+scv-selfcheck.sh:71:playbook-points-to-ux-md		PLAYBOOK points to UX.md
+scv-selfcheck.sh:72:ux-padded-phase-label		UX padded phase label
+scv-selfcheck.sh:73:ux-padded-wait-label		UX padded wait label
+scv-selfcheck.sh:74:ux-wait-description-korean		UX wait description Korean
+scv-selfcheck.sh:75:ux-worker-done-user-label		UX worker_done user label
+scv-selfcheck.sh:76:ux-forbids-bare-engine-types		UX forbids bare engine types
+scv-selfcheck.sh:77:ux-forbids-rolling-wait		UX forbids Rolling wait
+scv-selfcheck.sh:78:ux-display-name-korean		UX display-name Korean
+scv-selfcheck.sh:81:playbook-lifecycle-block		PLAYBOOK LIFECYCLE block
+scv-selfcheck.sh:82:playbook-structured-worker-done-cli		PLAYBOOK structured worker_done CLI
+scv-selfcheck.sh:83:playbook-forbids-payload-structured-mix		PLAYBOOK forbids payload+structured mix
+scv-selfcheck.sh:84:playbook-askuser-human-gates		PLAYBOOK AskUser human gates
+scv-selfcheck.sh:85:playbook-no-prose-re-ask		PLAYBOOK no prose re-ask
+scv-selfcheck.sh:89:orchestration-skill-structured-worker-done		orchestration skill structured worker_done
+scv-selfcheck.sh:93:orchestration-skill-still-has-legacy-payload-worker-		orchestration skill still has legacy --payload worker_done one-liner
+scv-selfcheck.sh:95:orchestration-skill-no-legacy-payload-one-liner		orchestration skill no legacy payload one-liner
+scv-selfcheck.sh:98:orchestration-skill-payload-usage-checked		orchestration skill payload usage checked
+scv-selfcheck.sh:102:orchestration-skill-repo-grok-mirror	grok-only	orchestration SKILL repo ≡ grok mirror
+scv-selfcheck.sh:104:orchestration-skill-drift-cp-orch-skill-orch-mirror	grok-only	orchestration SKILL drift — cp $ORCH_SKILL $ORCH_MIRROR
+scv-selfcheck.sh:107:orchestration-mirror-missing-at-orch-mirror	grok-only	orchestration mirror missing at $ORCH_MIRROR
+scv-selfcheck.sh:110:orchestration-skill-missing-at-orch-skill		orchestration skill missing at $ORCH_SKILL
+scv-selfcheck.sh:114:playbook-mid-run-reclaim		PLAYBOOK mid-run reclaim
+scv-selfcheck.sh:115:playbook-evidence-escrow		PLAYBOOK evidence escrow
+scv-selfcheck.sh:116:playbook-no-tab-reclaim		PLAYBOOK no --tab reclaim
+scv-selfcheck.sh:120:playbook-ready-no-tools-90s		PLAYBOOK Ready-no-tools ≥90s
+scv-selfcheck.sh:122:playbook-no-re-inject-stuck-pane		PLAYBOOK no re-inject stuck pane
+scv-selfcheck.sh:126:playbook-session-reuse-policy-1-3-7		PLAYBOOK session reuse policy 1.3.7
+scv-selfcheck.sh:128:playbook-audit-always-fresh		PLAYBOOK audit always fresh
+scv-selfcheck.sh:130:playbook-phase-end-close		PLAYBOOK phase-end close
+scv-selfcheck.sh:131:handoff-template-present		handoff template present
+scv-selfcheck.sh:133:playbook-ndjson-keepalive-parse		PLAYBOOK NDJSON/keepalive parse
+scv-selfcheck.sh:135:playbook-mid-reclaiming-mid-reclaimed		PLAYBOOK mid_reclaiming→mid_reclaimed
+scv-selfcheck.sh:138:playbook		PLAYBOOK 문서 언어
+scv-selfcheck.sh:139:playbook-scope		PLAYBOOK scope
+scv-selfcheck.sh:140:playbook-run-close		PLAYBOOK run close
+scv-selfcheck.sh:141:playbook-prompt-first		PLAYBOOK prompt-first
+scv-selfcheck.sh:142:playbook-audit-reclaim		PLAYBOOK audit→reclaim
+scv-selfcheck.sh:143:playbook-audit-focus		PLAYBOOK audit focus
+scv-selfcheck.sh:144:playbook-no-evolution-audit		PLAYBOOK no-evolution audit
+scv-selfcheck.sh:148:lessons-hard-count-hard-n-15		LESSONS hard count=$hard_n (≤15)
+scv-selfcheck.sh:152:canonical-skill-present		canonical SKILL present
+scv-selfcheck.sh:154:skill-mentions-packversion-ver		SKILL mentions packVersion $ver
+scv-selfcheck.sh:156:skill-rpc-id		SKILL RPC/id
+scv-selfcheck.sh:157:skill-task-title		SKILL task-title
+scv-selfcheck.sh:158:skill-docs-language		SKILL docs language
+scv-selfcheck.sh:159:skill-lifecycle-structured		SKILL lifecycle/structured
+scv-selfcheck.sh:160:skill-ux-md		SKILL UX.md
+scv-selfcheck.sh:162:canonical-skill-missing-at-skill-canon		canonical SKILL missing at $SKILL_CANON
+scv-selfcheck.sh:165:mirror-skill-present	grok-only	mirror SKILL present
+scv-selfcheck.sh:167:skill-canon-mirror	grok-only	SKILL canon ≡ mirror
+scv-selfcheck.sh:169:skill-canon-mirror-drift-cp-skill-canon-skill-mirror	grok-only	SKILL canon/mirror drift — cp $SKILL_CANON $SKILL_MIRROR
+scv-selfcheck.sh:172:mirror-skill-missing-at-skill-mirror	grok-only	mirror SKILL missing at $SKILL_MIRROR
+scv-selfcheck.sh:177:workers-count-7		workers count=7
+scv-selfcheck.sh:179:python-structural-assertion		python structural assertion
+scv-selfcheck.sh:222:python-structural-assertion		python structural assertion

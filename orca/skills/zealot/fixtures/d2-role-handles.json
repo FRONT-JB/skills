@@ -1,0 +1,10 @@
+{
+  "coordinatorHandle": "term_coordinator",
+  "roleHandles": {
+    "init": "term_init",
+    "plan": "term_plan",
+    "code-review": "term_code_review",
+    "release": "term_release"
+  },
+  "requirePairwiseDistinct": true
+}

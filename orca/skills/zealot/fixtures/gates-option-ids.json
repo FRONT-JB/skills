@@ -1,0 +1,26 @@
+{
+  "fallbackMode": "fallback-text-once",
+  "gates": {
+    "plan_approve": {
+      "options": { "approve": "PLAN_APPROVED", "revise": "PLAN_REVISE", "abort": "ABORTED" }
+    },
+    "scope_expand": {
+      "options": { "keep_scope": "SCOPE_KEEP", "defer": "SCOPE_DEFER", "expand_now": "SCOPE_EXPAND" }
+    },
+    "risk_p0p1": {
+      "options": { "accept_risk": "RISK_ACCEPTED", "fix_resume": "RISK_FIX", "abort": "ABORTED" }
+    },
+    "dirty_branch": {
+      "options": { "split_commit": "DIRTY_SPLIT", "stash": "DIRTY_STASH", "abort": "ABORTED" }
+    },
+    "push_release": {
+      "options": { "push": "PUSH_GO", "hold": "PUSH_HOLD", "abort": "ABORTED" }
+    },
+    "reclaim_optin": {
+      "options": { "reclaim": "RECLAIM_YES", "keep": "RECLAIM_NO" }
+    },
+    "hang_giveup": {
+      "options": { "retry": "HANG_RETRY", "abort": "ABORTED" }
+    }
+  }
+}
