@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.1",
+  "packVersion": "1.3.2",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -26,7 +26,10 @@
     "forbidHeartbeatInWaitTypes": true,
     "singleOwner": true,
     "parseMode": "ndjson-linewise-or-json-sequence",
-    "skipKeepaliveKeys": ["_keepalive", "_heartbeat"],
+    "skipKeepaliveKeys": [
+      "_keepalive",
+      "_heartbeat"
+    ],
     "stragglerDrop": true,
     "requireActiveDispatchIdMatch": true,
     "perTaskActiveDispatch": true,
@@ -55,7 +58,8 @@
       "messageConsumedAt",
       "nextDispatchAt"
     ],
-    "userGatePrepReadOnly": true
+    "userGatePrepReadOnly": true,
+    "midRunSoftReclaim": true
   },
   "audit": {
     "requiredAttempt": true,
@@ -176,6 +180,30 @@
     "speed": "Step-preserving only. Kill coord overhead (parser miss empty waits, fixed sleep, tab churn, serial audit). Never skip review/gates; never same-batch implement∥review; never raise maxConcurrent without evidence.",
     "peerRuns": "Soft-observe other [scv:*] tasks; do not assume shared worktree from title alone (task-list has no branch).",
     "changelog_1_3_0": "2026-07-19: coordination hygiene — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended",
-    "changelog_1_3_1": "2026-07-20: RPC id verb paths; wait JSON-sequence parse; per-task activeDispatch; peer soft-warn; unread routing; wait·liveness fusion; handoff latency; terminal next-role reuse; SKILL SSOT paths; run.json schema; speed rules without step changes"
+    "changelog_1_3_1": "2026-07-20: RPC id verb paths; wait JSON-sequence parse; per-task activeDispatch; peer soft-warn; unread routing; wait·liveness fusion; handoff latency; terminal next-role reuse; SKILL SSOT paths; run.json schema; speed rules without step changes",
+    "changelog_1_3_2": "2026-07-20: mid-run soft reclaim — optional in-phase operation (not new phase); default keep; evidence escrow; two-phase commit; no --tab; plan-review hold until first implement gate; audit capability reserve claude1+codex1; external manual close reconciles registry",
+    "midRunReclaim": "Opt-in pane hygiene after role finished. Not a pipeline step. SSOT=artifacts+state+git. Exact createdByRun handles only. Escrow terminal evidence before close. Final RECLAIM after AUDIT unchanged."
+  },
+  "midRunReclaim": {
+    "enabled": true,
+    "defaultAction": "keep",
+    "mode": "opt-in-milestone",
+    "isNewPhase": false,
+    "allowOnlyCreatedByRun": true,
+    "forbidDuringAudit": true,
+    "forbidWhenBlocked": true,
+    "forbidWhenOpenDecisionGate": true,
+    "requireArtifacts": true,
+    "requireEvidenceEscrow": true,
+    "requireTerminalShowBeforeClose": true,
+    "forbidTabClose": true,
+    "twoPhaseCommit": true,
+    "preferKeepAuditHandles": {
+      "claude": 1,
+      "codex": 1
+    },
+    "planReviewHoldUntil": "first-implement-batch-gate-pass-without-scope-expand",
+    "logPath": ".scv/state/$RUN_ID/reclaim/midrun-log.md",
+    "onExternalManualClose": "reconcile-registry-and-pause-auto-midrun-reclaim"
   }
 }

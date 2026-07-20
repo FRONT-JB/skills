@@ -33,6 +33,8 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - **Wait·liveness fusion:** no fixed sleep 60; open wait after inject; early healthy≠done; no early-hung (90s Ready-no-tools).
 - **Speed:** step-preserving only; reuse terminals (next role only); no empty wait after consumed worker_done; measure handoff latency not raw sum of parallel task durations.
 
+- **Mid-run soft reclaim (1.3.2):** optional in-phase op (not a new phase). default=keep. exact createdByRun only. no `--tab`. evidence escrow before close. two-phase: mid_reclaiming → verify gone → mid_reclaimed. plan-review hold until first implement gate without scope expand. forbid during AUDIT/BLOCKED/open gate. keep audit Claude1+Codex1. manual close → reconcile registry, pause auto mid-run reclaim. Final AUDIT→RECLAIM unchanged.
+
 ## Session log
 
 - 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
@@ -51,5 +53,8 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 
 
 - 2026-07-20 — **pack 1.3.1 (logic+speed, step-preserving):** (1) task-create root UUID mistaken for task id → document `result.task.id` only. (2) `terminal split` returns `result.split.handle` not `result.terminal.handle`. (3) init wait-1 keepalive+pretty mixed → whole-buffer parse miss → wait-2..12 empty ~10–16m after complete — JSON-sequence parse + stop opening wait after consumed worker_done. (4) fixed sleep 55–60 before wait → wait·liveness fusion. (5) multi-run same branch confuses UI — peer soft-warn; task-list has no worktree. (6) untyped unread can consume other-run lifecycle/gates — route messages. (7) maxConcurrent=2 needs per-task activeDispatchId. (8) speed: no review skip / no same-batch implement∥review; warm next role only; handoff latency fields. Dual Claude∥Codex re-verify of logic+speed drafts.
+
+
+- 2026-07-20 — **pack 1.3.2 mid-run soft reclaim:** dual Claude∥Codex review. Adopt opt-in in-phase reclaim with evidence escrow, two-phase commit, forbid `--tab`, plan-review hold until first implement gate, default keep, audit handle reserve. Reject early plan-review kill and pre-close mid_reclaimed mark.
 
 <!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->

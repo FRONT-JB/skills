@@ -17,7 +17,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 |------|------|
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK (SSOT) | `$HOME/.orca/scv/PLAYBOOK.md` |
-| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.1**) |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.2**) |
 | templates | `$HOME/.orca/scv/templates/` |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` |
@@ -92,6 +92,7 @@ preflight → seed/interview → (init?) → Claude plan
 | Reclaim | after audit, before close · allowlist · never `reset --all` |
 | Close order | **AUDIT → RECLAIM → CLOSING → FINAL** |
 | Speed | step-preserving; kill coord overhead only; no review skip; no same-batch implement∥review |
+| Mid-run reclaim | opt-in in-phase only; default keep; exact createdByRun; evidence escrow; no `--tab`; two-phase commit; plan-review until first impl gate; keep audit Claude1+Codex1; final RECLAIM unchanged |
 | P0 | never SUCCESS · human risk accept only |
 | dispatch | no `--model` |
 
@@ -135,3 +136,4 @@ preflight → seed/interview → (init?) → Claude plan
 - Audit fail → force BLOCKED ship status
 - English-only user progress; plan-review skip; `git add -A`
 - same-batch implement∥code-review; plan∥plan-review; maxConcurrent unlimited
+- mid-run reclaim as new phase; plan-review kill right after approve; close `--tab`; escrow skip

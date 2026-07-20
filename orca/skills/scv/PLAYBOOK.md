@@ -11,7 +11,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.1** — RPC id 계약 · wait/pretty 파서 · per-task dispatch · peer soft-warn · wait·liveness fusion · handoff latency · terminal reuse 강제)
+- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.2** — 1.3.1 + mid-run soft reclaim(opt-in, evidence escrow, no --tab, default keep))
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -269,8 +269,9 @@ orca orchestration check --wait \
 | audit/리뷰 쌍 maxConcurrent=2 병렬 | plan∥plan-review, same-batch implement∥code-review |
 | 승인 대기 중 read-only 준비(branch/gate dry/다음 터미널) · **inject 금지** | 승인 전 implement dispatch |
 | handoff latency 기록 (`workerDoneAt`→`consumedAt`→`nextDispatchAt`) | 병렬 task duration 단순 합으로 overhead 음수 계산 |
+| mid-run soft reclaim (opt-in, evidence escrow) 로 죽은 pane 정리 | 재사용 예정·audit·active pane 조기 회수 · `--tab` |
 
-사람 승인·워커 사고 시간은 줄이지 않는다. 줄이는 대상은 **코디 오버헤드·공회전·직렬 낭비**.
+사람 승인·워커 사고 시간은 줄이지 않는다. 줄이는 대상은 **코디 오버헤드·공회전·직렬 낭비·죽은 탭**.
 
 **안티패턴 (메일 스택 · 대기)**
 
@@ -436,6 +437,81 @@ phase: AUDIT
 **BLOCKED:** inventory 필수 · review best-effort · **파괴적 reclaim 기본 스킵**.  
 **audit skip:** 사용자 **명시 요청** + decisions 기록만 (overlay `audit: false` 일반 경로 금지).
 
+
+#### 8b. Mid-run Soft Reclaim (optional operation · pack 1.3.2)
+
+**새 phase/step 아님.** 현재 phase 안에서 코디네이터가 수행하는 **opt-in 터미널 위생**이다.  
+말미 `AUDIT → RECLAIM → CLOSING → FINAL` 을 대체하지 않는다.
+
+##### 원칙 (Hard)
+
+| # | 규칙 |
+|---|------|
+| 1 | SSOT = disk 산출 + orchestration state + git. pane scrollback 이 아님 |
+| 2 | **default = keep.** 불확실·BLOCKED·미해결 `decision_gate`·unrouted lifecycle → **회수 금지** |
+| 3 | `createdByRun: true` · `!preExisting` · **exact handle only**. coordinator/borrowed 금지 |
+| 4 | 해당 handle 에 연결된 this-run task 가 **모두 terminal** · active dispatch 없음 (`dispatch-show --task`, per-task map) |
+| 5 | worker_done 미소비 · open human gate → 회수 금지 |
+| 6 | **AUDIT 중 회수 금지.** audit 재사용용 Claude≥1 · Codex≥1 capability 유지 권장 |
+| 7 | fuzzy title · worktree-wide stop · **`reset --all`** · mid-run **`terminal close --tab`** 금지 (sibling/coordinator 오종료) |
+| 8 | close 전 **evidence escrow** (비밀 제외 bounded preview/error/liveness digest + artifact paths) 없으면 회수 금지 |
+
+##### 회수 가능 시점 (eligibility — milestone 이름만 보지 말 것)
+
+| 조건 | 회수 후보 | 유지 |
+|------|-----------|------|
+| plan **승인+hash/scope/gate 동결** 후에도 plan 핑퐁·§3b 범위 확장 가능성 | — | **plan-review 는 첫 implement batch 가 범위 확장 없이 gate PASS 할 때까지 유지** |
+| 위 implement gate 통과 + plan 역할 재발화 없음 | plan Claude, plan-review Codex | implement / 다음 code-review |
+| code-review round 종료 확정 (P0+P1=0, 추가 round 불필요) | 해당 round 전용으로만 쓰이던 handle (역할당 1 handle 재사용 규칙상 드묾) | 다음 round·release·audit 후보 |
+| AUDIT 전 | 불필요 edit 워커 | **Claude 1 + Codex 1** audit capability |
+| AUDIT 중 / BLOCKED / incident 조사 | **금지** | 관련 pane |
+
+역할당 handle 1개 재사용이 기본이므로 “round 전용 핸들”을 가정하지 말 것.  
+**task graph · scope-expansion 가능성 · role command · audit reserve** 로 판단.
+
+##### 절차 (two-phase commit)
+
+```text
+1) eligibility + artifact MUST (§ 아래) 확인
+2) tasksById 에서 terminalHandle==candidate 인 모든 task terminal + gate/lifecycle clean
+3) run.json intent: status=mid_reclaiming, attemptId, expectedHandle, milestone  (아직 mid_reclaimed 아님)
+4) evidence escrow → .scv/state/$RUN_ID/reclaim/midrun-log.md append
+5) orca terminal close --terminal <exact-handle> --json   # mid-run: --tab 금지
+6) terminal show/list 로 exact pane 부재 확인
+7) 성공 시에만 status=mid_reclaimed, reclaimedAt, closeResult 확정
+8) 실패 시 reclaim_failed + 실제 상태 · 자동 reclaim 중단 가능
+```
+
+사용자 수동 close 감지 시: registry reconcile 후 **자동 mid-run reclaim 중단** (stale registry 방지).
+
+##### Artifact MUST (회수 전)
+
+| 역할 | 최소 |
+|------|------|
+| plan | `docs/plans/….plan.md` + 로컬 커밋 + hash/scope freeze in decisions + worker_done 소비 |
+| plan-review | `.scv/.../plan-review/*.md` + verdict + worker_done 소비 |
+| implement | commits + quality-gate md + gate PASS 증거 + worker_done |
+| code-review | `.scv/.../code-review/claude-round-N.md` + verdict |
+| review-fix | gate + commits + worker_done |
+
+미커밋 “워킹트리만 확정” 으로는 회수 금지.
+
+##### Audit 과의 관계
+
+- mid-run reclaim **자체는 Audit 을 막지 않음** (state/git/report SSOT).
+- terminal-only hang/update/error 를 escrow 없이 닫으면 **stability Audit 이 어려워짐** → escrow 필수.
+- inventory 에 Mid-run reclaim 절 권장: handles · milestone · artifacts · snapshot · reopen 이력.
+- ship status 와 auditStatus 직교 (기존).
+
+##### 안티패턴
+
+- plan 승인 직후 plan-review 즉시 회수
+- `mid_reclaimed` 를 close 전에 확정
+- `--tab` / fuzzy / reset --all
+- audit 핸들까지 pane 수 목표로 닫기
+- evidence 없이 scrollback 의존 후 삭제
+
+
 #### 9. Reclaim (Audit 직후 · close 직전 — 권장 순서)
 
 ```text
@@ -455,8 +531,9 @@ release outcome
 | 닫아도 됨 | 금지 |
 |-----------|------|
 | `createdByRun: true` · exact handle · task terminal · idle | coordinator 탭 · borrowed/`preExisting` handle 기본 종료 |
-| orphan **waiter only** | 퍼지 매칭 · worktree-wide stop · **`reset --all`** |
-| | 미결 decision_gate 시 강제 종료 · sibling 불확실 시 추정 close |
+| orphan **waiter only** | 퍼지 매칭 · worktree-wide stop · **`reset --all`** · 불필요 **`--tab`**(탭 단위 오종료) |
+| mid-run 에서 이미 `mid_reclaimed` 인 handle 은 skip | 미결 decision_gate 시 강제 종료 · sibling 불확실 시 추정 close |
+| | AUDIT 미완 시 mid-run 잔여와 말미 RECLAIM 혼동 금지 — midrun-log 참고 |
 
 불증이면 skip + `reclaimStatus: partial`. close 직전 `terminal show` 재검증.
 
@@ -523,13 +600,13 @@ audit/
   reclaim-log.md
 ```
 
-#### run.json 필드 (pack 1.3.1)
+#### run.json 필드 (pack 1.3.2)
 
 | 구분 | 필드 |
 |------|------|
 | **필수** | `runId`, `phase`, `closed`, `resolvedDocsLanguage`, `thisRunTaskIds[]`, `completedTaskIds[]`, `terminals[]`(`handle,role,createdByRun,preExisting`), `tasksById` 또는 동등 map: `{ taskId: { activeDispatchId, terminalHandle, status } }` |
-| **권장** | `phaseEnteredAt` / phase 전환 시각, `workerDoneAt`·`messageConsumedAt`·`nextDispatchAt`(handoff latency), `peerTaskIdsObserved[]`(관측 only), `activeWaitOwner`, `waitGeneration`, `lastConsumedMsgId`, `status`/`auditStatus`/`reclaimStatus` |
-| **주의** | 전역 단일 `activeDispatchId` 만 쓰면 `maxConcurrent: 2` 병렬에서 오판. 병렬 task duration **단순 합**으로 overhead 계산 금지 → critical-path/union 또는 handoff gap 사용 |
+| **권장** | `phaseEnteredAt` / phase 전환 시각, `workerDoneAt`·`messageConsumedAt`·`nextDispatchAt`(handoff latency), `peerTaskIdsObserved[]`(관측 only), `activeWaitOwner`, `waitGeneration`, `lastConsumedMsgId`, `status`/`auditStatus`/`reclaimStatus`, mid-run: `terminals[].status` ∈ {active, mid_reclaiming, mid_reclaimed, reclaim_failed} |
+| **주의** | 전역 단일 `activeDispatchId` 만 쓰면 `maxConcurrent: 2` 병렬에서 오판. 병렬 task duration **단순 합**으로 overhead 계산 금지 → critical-path/union 또는 handoff gap 사용. mid-run 은 close 검증 전 `mid_reclaimed` 확정 금지 |
 
 **phase 시각 (필수에 가깝게 · audit/속도 정량화):** phase 전환 시 wall-clock 기록. FINAL 에 handoff latency 요약을 남길 수 있다.
 

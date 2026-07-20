@@ -21,7 +21,7 @@ done
 if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; then
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
-  [[ "$ver" == "1.3.1" ]] && ok "packVersion=$ver" || fail "packVersion want 1.3.1 got $ver"
+  [[ "$ver" == "1.3.2" ]] && ok "packVersion=$ver" || fail "packVersion want 1.3.2 got $ver"
 else
   fail "meta.json invalid JSON"
 fi
@@ -58,10 +58,16 @@ grep -q 'tasksById\|per-task\|per task' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK per-
 grep -q '900000\|waitTimeoutMs\|전체.*budget\|budget 가이드' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK rolling vs budget" || fail "PLAYBOOK missing budget vs rolling"
 grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK gate drain safety" || ok "PLAYBOOK gate drain (soft)"
 
+
+# 1.3.2 mid-run reclaim
+grep -q 'Mid-run Soft Reclaim\|mid-run soft reclaim\|8b. Mid-run' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK mid-run reclaim" || fail "PLAYBOOK missing mid-run reclaim"
+grep -q 'evidence escrow\|Evidence escrow' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK evidence escrow" || fail "PLAYBOOK missing evidence escrow"
+grep -q 'forbidTabClose\|--tab' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK no --tab reclaim" || fail "PLAYBOOK missing --tab forbid"
+
 # SKILL canon + mirror
 if [[ -f "$SKILL_CANON" ]]; then
   ok "canonical SKILL present ($SKILL_CANON)"
-  grep -q '1.3.1' "$SKILL_CANON" && ok "SKILL pack 1.3.1" || fail "SKILL missing 1.3.1"
+  grep -q '1.3.2' "$SKILL_CANON" && ok "SKILL pack 1.3.2" || fail "SKILL missing 1.3.2"
   grep -q 'result.task.id\|RPC' "$SKILL_CANON" && ok "SKILL RPC/id" || fail "SKILL missing RPC contract"
   grep -q 'task-title' "$SKILL_CANON" && ok "SKILL task-title" || fail "SKILL missing task-title"
   grep -q 'resolvedDocsLanguage\|문서 언어' "$SKILL_CANON" && ok "SKILL docs language" || fail "SKILL missing docs language"
@@ -97,7 +103,7 @@ grep -q '고도화 금지\|forbidEvolution\|evolution' "$ROOT/PLAYBOOK.md" && ok
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.1'
+assert m.get('packVersion')=='1.3.2'
 assert m.get('intake',{}).get('mode')=='prompt-first'
 assert m.get('audit',{}).get('forbidEvolution') is True
 assert len(m.get('workers',[]))==7
@@ -106,7 +112,11 @@ assert m.get('rpcIdPaths',{}).get('forbidRootIdAsTaskId') is True
 assert m.get('speed',{}).get('stepPreservingOnly') is True
 assert m.get('waitRollingTimeoutMs')==90000
 assert m.get('waitTimeoutMs')==900000
-" && ok "meta intake/audit/workers/1.3.1 fields" || fail "meta intake/audit/workers/1.3.1 invalid"
+assert m.get('midRunReclaim',{}).get('defaultAction')=='keep'
+assert m.get('midRunReclaim',{}).get('forbidTabClose') is True
+assert m.get('midRunReclaim',{}).get('requireEvidenceEscrow') is True
+assert m.get('midRunReclaim',{}).get('isNewPhase') is False
+" && ok "meta intake/audit/workers/1.3.2 fields" || fail "meta intake/audit/workers/1.3.2 invalid"
 
 if [[ $err -eq 0 ]]; then
   echo "RESULT: PASS"

@@ -1,36 +1,7 @@
 # scv 조율 모드 팩 (사용자 맞춤)
 
-> Orca 조율 스튜디오에서 **이 사용자가 만든** 설정입니다.
-> 아래를 **이 컴퓨터**의 `$HOME/.orca/scv/` 에 저장하세요.
->
-> **버전:** 2026-07-20 v8.0 (packVersion **1.3.1**)  
-> **변경 요약:** RPC id verb paths · wait JSON-sequence parse · per-task activeDispatch · peer soft-warn · wait·liveness fusion · handoff latency · terminal next-role reuse · SKILL SSOT · run.json schema · step-preserving speed (파이프라인 단계 불변)
->
-> 파일 SSOT: `$HOME/Desktop/jb/skills/orca/skills/scv/` → install `$HOME/.orca/scv/` · Grok mirror `$HOME/.grok/skills/scv/SKILL.md`
-
-## 이 팩 요약
-| 항목 | 값 |
-|------|-----|
-| 표시 이름 | scv |
-| packVersion | 1.3.1 |
-| 팀장 | Grok · supervised |
-| 교차 검증 | plan Claude/Codex · code Codex/Claude |
-| 문서 언어 | 기본 ko (`resolvedDocsLanguage`) |
-| Intake | **prompt-first** (옵션 메뉴 선제 금지) |
-| Wait | single owner · JSON-sequence parse · wait·liveness fusion · per-task dispatchId |
-| Terminal | first create + split · idempotent reuse · next-role only |
-| 말미 | AUDIT → RECLAIM → CLOSING → FINAL |
-| Audit 초점 | time / stability only · 고도화 금지 |
-| 상태 루트 | `.scv/state/$RUN_ID/` (gitignore) |
-
-### 파이프라인
-
-```text
-preflight → seed/interview → plan… → release
-  → AUDIT (inventory + Claude∥Codex · time|stability)
-  → RECLAIM (createdByRun)
-  → CLOSING → FINAL
-```
+> **버전:** 2026-07-20 v9.0 (packVersion **1.3.2**)  
+> 파일 SSOT: `$HOME/Desktop/jb/skills/orca/skills/scv/` → `$HOME/.orca/scv/` · Grok `$HOME/.grok/skills/scv/SKILL.md`
 
 ## 설치
 
@@ -43,7 +14,7 @@ cp "$HOME/.orca/scv/SKILL.md" "$HOME/.grok/skills/scv/SKILL.md"
 
 ---
 
-# PLAYBOOK (SSOT copy)
+# PLAYBOOK
 
 # scv Orchestration Mode (Orca) — Global
 
@@ -58,7 +29,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.1** — RPC id 계약 · wait/pretty 파서 · per-task dispatch · peer soft-warn · wait·liveness fusion · handoff latency · terminal reuse 강제)
+- packVersion: `meta.json` 의 `packVersion` (현재 **1.3.2** — 1.3.1 + mid-run soft reclaim(opt-in, evidence escrow, no --tab, default keep))
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -316,8 +287,9 @@ orca orchestration check --wait \
 | audit/리뷰 쌍 maxConcurrent=2 병렬 | plan∥plan-review, same-batch implement∥code-review |
 | 승인 대기 중 read-only 준비(branch/gate dry/다음 터미널) · **inject 금지** | 승인 전 implement dispatch |
 | handoff latency 기록 (`workerDoneAt`→`consumedAt`→`nextDispatchAt`) | 병렬 task duration 단순 합으로 overhead 음수 계산 |
+| mid-run soft reclaim (opt-in, evidence escrow) 로 죽은 pane 정리 | 재사용 예정·audit·active pane 조기 회수 · `--tab` |
 
-사람 승인·워커 사고 시간은 줄이지 않는다. 줄이는 대상은 **코디 오버헤드·공회전·직렬 낭비**.
+사람 승인·워커 사고 시간은 줄이지 않는다. 줄이는 대상은 **코디 오버헤드·공회전·직렬 낭비·죽은 탭**.
 
 **안티패턴 (메일 스택 · 대기)**
 
@@ -483,6 +455,81 @@ phase: AUDIT
 **BLOCKED:** inventory 필수 · review best-effort · **파괴적 reclaim 기본 스킵**.  
 **audit skip:** 사용자 **명시 요청** + decisions 기록만 (overlay `audit: false` 일반 경로 금지).
 
+
+#### 8b. Mid-run Soft Reclaim (optional operation · pack 1.3.2)
+
+**새 phase/step 아님.** 현재 phase 안에서 코디네이터가 수행하는 **opt-in 터미널 위생**이다.  
+말미 `AUDIT → RECLAIM → CLOSING → FINAL` 을 대체하지 않는다.
+
+##### 원칙 (Hard)
+
+| # | 규칙 |
+|---|------|
+| 1 | SSOT = disk 산출 + orchestration state + git. pane scrollback 이 아님 |
+| 2 | **default = keep.** 불확실·BLOCKED·미해결 `decision_gate`·unrouted lifecycle → **회수 금지** |
+| 3 | `createdByRun: true` · `!preExisting` · **exact handle only**. coordinator/borrowed 금지 |
+| 4 | 해당 handle 에 연결된 this-run task 가 **모두 terminal** · active dispatch 없음 (`dispatch-show --task`, per-task map) |
+| 5 | worker_done 미소비 · open human gate → 회수 금지 |
+| 6 | **AUDIT 중 회수 금지.** audit 재사용용 Claude≥1 · Codex≥1 capability 유지 권장 |
+| 7 | fuzzy title · worktree-wide stop · **`reset --all`** · mid-run **`terminal close --tab`** 금지 (sibling/coordinator 오종료) |
+| 8 | close 전 **evidence escrow** (비밀 제외 bounded preview/error/liveness digest + artifact paths) 없으면 회수 금지 |
+
+##### 회수 가능 시점 (eligibility — milestone 이름만 보지 말 것)
+
+| 조건 | 회수 후보 | 유지 |
+|------|-----------|------|
+| plan **승인+hash/scope/gate 동결** 후에도 plan 핑퐁·§3b 범위 확장 가능성 | — | **plan-review 는 첫 implement batch 가 범위 확장 없이 gate PASS 할 때까지 유지** |
+| 위 implement gate 통과 + plan 역할 재발화 없음 | plan Claude, plan-review Codex | implement / 다음 code-review |
+| code-review round 종료 확정 (P0+P1=0, 추가 round 불필요) | 해당 round 전용으로만 쓰이던 handle (역할당 1 handle 재사용 규칙상 드묾) | 다음 round·release·audit 후보 |
+| AUDIT 전 | 불필요 edit 워커 | **Claude 1 + Codex 1** audit capability |
+| AUDIT 중 / BLOCKED / incident 조사 | **금지** | 관련 pane |
+
+역할당 handle 1개 재사용이 기본이므로 “round 전용 핸들”을 가정하지 말 것.  
+**task graph · scope-expansion 가능성 · role command · audit reserve** 로 판단.
+
+##### 절차 (two-phase commit)
+
+```text
+1) eligibility + artifact MUST (§ 아래) 확인
+2) tasksById 에서 terminalHandle==candidate 인 모든 task terminal + gate/lifecycle clean
+3) run.json intent: status=mid_reclaiming, attemptId, expectedHandle, milestone  (아직 mid_reclaimed 아님)
+4) evidence escrow → .scv/state/$RUN_ID/reclaim/midrun-log.md append
+5) orca terminal close --terminal <exact-handle> --json   # mid-run: --tab 금지
+6) terminal show/list 로 exact pane 부재 확인
+7) 성공 시에만 status=mid_reclaimed, reclaimedAt, closeResult 확정
+8) 실패 시 reclaim_failed + 실제 상태 · 자동 reclaim 중단 가능
+```
+
+사용자 수동 close 감지 시: registry reconcile 후 **자동 mid-run reclaim 중단** (stale registry 방지).
+
+##### Artifact MUST (회수 전)
+
+| 역할 | 최소 |
+|------|------|
+| plan | `docs/plans/….plan.md` + 로컬 커밋 + hash/scope freeze in decisions + worker_done 소비 |
+| plan-review | `.scv/.../plan-review/*.md` + verdict + worker_done 소비 |
+| implement | commits + quality-gate md + gate PASS 증거 + worker_done |
+| code-review | `.scv/.../code-review/claude-round-N.md` + verdict |
+| review-fix | gate + commits + worker_done |
+
+미커밋 “워킹트리만 확정” 으로는 회수 금지.
+
+##### Audit 과의 관계
+
+- mid-run reclaim **자체는 Audit 을 막지 않음** (state/git/report SSOT).
+- terminal-only hang/update/error 를 escrow 없이 닫으면 **stability Audit 이 어려워짐** → escrow 필수.
+- inventory 에 Mid-run reclaim 절 권장: handles · milestone · artifacts · snapshot · reopen 이력.
+- ship status 와 auditStatus 직교 (기존).
+
+##### 안티패턴
+
+- plan 승인 직후 plan-review 즉시 회수
+- `mid_reclaimed` 를 close 전에 확정
+- `--tab` / fuzzy / reset --all
+- audit 핸들까지 pane 수 목표로 닫기
+- evidence 없이 scrollback 의존 후 삭제
+
+
 #### 9. Reclaim (Audit 직후 · close 직전 — 권장 순서)
 
 ```text
@@ -502,8 +549,9 @@ release outcome
 | 닫아도 됨 | 금지 |
 |-----------|------|
 | `createdByRun: true` · exact handle · task terminal · idle | coordinator 탭 · borrowed/`preExisting` handle 기본 종료 |
-| orphan **waiter only** | 퍼지 매칭 · worktree-wide stop · **`reset --all`** |
-| | 미결 decision_gate 시 강제 종료 · sibling 불확실 시 추정 close |
+| orphan **waiter only** | 퍼지 매칭 · worktree-wide stop · **`reset --all`** · 불필요 **`--tab`**(탭 단위 오종료) |
+| mid-run 에서 이미 `mid_reclaimed` 인 handle 은 skip | 미결 decision_gate 시 강제 종료 · sibling 불확실 시 추정 close |
+| | AUDIT 미완 시 mid-run 잔여와 말미 RECLAIM 혼동 금지 — midrun-log 참고 |
 
 불증이면 skip + `reclaimStatus: partial`. close 직전 `terminal show` 재검증.
 
@@ -570,13 +618,13 @@ audit/
   reclaim-log.md
 ```
 
-#### run.json 필드 (pack 1.3.1)
+#### run.json 필드 (pack 1.3.2)
 
 | 구분 | 필드 |
 |------|------|
 | **필수** | `runId`, `phase`, `closed`, `resolvedDocsLanguage`, `thisRunTaskIds[]`, `completedTaskIds[]`, `terminals[]`(`handle,role,createdByRun,preExisting`), `tasksById` 또는 동등 map: `{ taskId: { activeDispatchId, terminalHandle, status } }` |
-| **권장** | `phaseEnteredAt` / phase 전환 시각, `workerDoneAt`·`messageConsumedAt`·`nextDispatchAt`(handoff latency), `peerTaskIdsObserved[]`(관측 only), `activeWaitOwner`, `waitGeneration`, `lastConsumedMsgId`, `status`/`auditStatus`/`reclaimStatus` |
-| **주의** | 전역 단일 `activeDispatchId` 만 쓰면 `maxConcurrent: 2` 병렬에서 오판. 병렬 task duration **단순 합**으로 overhead 계산 금지 → critical-path/union 또는 handoff gap 사용 |
+| **권장** | `phaseEnteredAt` / phase 전환 시각, `workerDoneAt`·`messageConsumedAt`·`nextDispatchAt`(handoff latency), `peerTaskIdsObserved[]`(관측 only), `activeWaitOwner`, `waitGeneration`, `lastConsumedMsgId`, `status`/`auditStatus`/`reclaimStatus`, mid-run: `terminals[].status` ∈ {active, mid_reclaiming, mid_reclaimed, reclaim_failed} |
+| **주의** | 전역 단일 `activeDispatchId` 만 쓰면 `maxConcurrent: 2` 병렬에서 오판. 병렬 task duration **단순 합**으로 overhead 계산 금지 → critical-path/union 또는 handoff gap 사용. mid-run 은 close 검증 전 `mid_reclaimed` 확정 금지 |
 
 **phase 시각 (필수에 가깝게 · audit/속도 정량화):** phase 전환 시 wall-clock 기록. FINAL 에 handoff latency 요약을 남길 수 있다.
 
@@ -687,7 +735,7 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.1",
+  "packVersion": "1.3.2",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -712,7 +760,10 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
     "forbidHeartbeatInWaitTypes": true,
     "singleOwner": true,
     "parseMode": "ndjson-linewise-or-json-sequence",
-    "skipKeepaliveKeys": ["_keepalive", "_heartbeat"],
+    "skipKeepaliveKeys": [
+      "_keepalive",
+      "_heartbeat"
+    ],
     "stragglerDrop": true,
     "requireActiveDispatchIdMatch": true,
     "perTaskActiveDispatch": true,
@@ -741,7 +792,8 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
       "messageConsumedAt",
       "nextDispatchAt"
     ],
-    "userGatePrepReadOnly": true
+    "userGatePrepReadOnly": true,
+    "midRunSoftReclaim": true
   },
   "audit": {
     "requiredAttempt": true,
@@ -862,7 +914,31 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
     "speed": "Step-preserving only. Kill coord overhead (parser miss empty waits, fixed sleep, tab churn, serial audit). Never skip review/gates; never same-batch implement∥review; never raise maxConcurrent without evidence.",
     "peerRuns": "Soft-observe other [scv:*] tasks; do not assume shared worktree from title alone (task-list has no branch).",
     "changelog_1_3_0": "2026-07-19: coordination hygiene — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT, phaseEnteredAt recommended",
-    "changelog_1_3_1": "2026-07-20: RPC id verb paths; wait JSON-sequence parse; per-task activeDispatch; peer soft-warn; unread routing; wait·liveness fusion; handoff latency; terminal next-role reuse; SKILL SSOT paths; run.json schema; speed rules without step changes"
+    "changelog_1_3_1": "2026-07-20: RPC id verb paths; wait JSON-sequence parse; per-task activeDispatch; peer soft-warn; unread routing; wait·liveness fusion; handoff latency; terminal next-role reuse; SKILL SSOT paths; run.json schema; speed rules without step changes",
+    "changelog_1_3_2": "2026-07-20: mid-run soft reclaim — optional in-phase operation (not new phase); default keep; evidence escrow; two-phase commit; no --tab; plan-review hold until first implement gate; audit capability reserve claude1+codex1; external manual close reconciles registry",
+    "midRunReclaim": "Opt-in pane hygiene after role finished. Not a pipeline step. SSOT=artifacts+state+git. Exact createdByRun handles only. Escrow terminal evidence before close. Final RECLAIM after AUDIT unchanged."
+  },
+  "midRunReclaim": {
+    "enabled": true,
+    "defaultAction": "keep",
+    "mode": "opt-in-milestone",
+    "isNewPhase": false,
+    "allowOnlyCreatedByRun": true,
+    "forbidDuringAudit": true,
+    "forbidWhenBlocked": true,
+    "forbidWhenOpenDecisionGate": true,
+    "requireArtifacts": true,
+    "requireEvidenceEscrow": true,
+    "requireTerminalShowBeforeClose": true,
+    "forbidTabClose": true,
+    "twoPhaseCommit": true,
+    "preferKeepAuditHandles": {
+      "claude": 1,
+      "codex": 1
+    },
+    "planReviewHoldUntil": "first-implement-batch-gate-pass-without-scope-expand",
+    "logPath": ".scv/state/$RUN_ID/reclaim/midrun-log.md",
+    "onExternalManualClose": "reconcile-registry-and-pause-auto-midrun-reclaim"
   }
 }
 
@@ -891,7 +967,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 |------|------|
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK (SSOT) | `$HOME/.orca/scv/PLAYBOOK.md` |
-| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.1**) |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.2**) |
 | templates | `$HOME/.orca/scv/templates/` |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` |
@@ -966,6 +1042,7 @@ preflight → seed/interview → (init?) → Claude plan
 | Reclaim | after audit, before close · allowlist · never `reset --all` |
 | Close order | **AUDIT → RECLAIM → CLOSING → FINAL** |
 | Speed | step-preserving; kill coord overhead only; no review skip; no same-batch implement∥review |
+| Mid-run reclaim | opt-in in-phase only; default keep; exact createdByRun; evidence escrow; no `--tab`; two-phase commit; plan-review until first impl gate; keep audit Claude1+Codex1; final RECLAIM unchanged |
 | P0 | never SUCCESS · human risk accept only |
 | dispatch | no `--model` |
 
@@ -1009,6 +1086,7 @@ preflight → seed/interview → (init?) → Claude plan
 - Audit fail → force BLOCKED ship status
 - English-only user progress; plan-review skip; `git add -A`
 - same-batch implement∥code-review; plan∥plan-review; maxConcurrent unlimited
+- mid-run reclaim as new phase; plan-review kill right after approve; close `--tab`; escrow skip
 
 
 ---
@@ -1050,6 +1128,8 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 - **Wait·liveness fusion:** no fixed sleep 60; open wait after inject; early healthy≠done; no early-hung (90s Ready-no-tools).
 - **Speed:** step-preserving only; reuse terminals (next role only); no empty wait after consumed worker_done; measure handoff latency not raw sum of parallel task durations.
 
+- **Mid-run soft reclaim (1.3.2):** optional in-phase op (not a new phase). default=keep. exact createdByRun only. no `--tab`. evidence escrow before close. two-phase: mid_reclaiming → verify gone → mid_reclaimed. plan-review hold until first implement gate without scope expand. forbid during AUDIT/BLOCKED/open gate. keep audit Claude1+Codex1. manual close → reconcile registry, pause auto mid-run reclaim. Final AUDIT→RECLAIM unchanged.
+
 ## Session log
 
 - 2026-07-18 — Empty Goal after Quick Command caused repeated "Goal is empty / pipeline stops" messaging. Fix: empty Goal is normal intake; ask once what to ship; never error-loop on blank Goal.
@@ -1069,14 +1149,17 @@ Run-notes for the scv orchestration mode. Read at the start of every run. Append
 
 - 2026-07-20 — **pack 1.3.1 (logic+speed, step-preserving):** (1) task-create root UUID mistaken for task id → document `result.task.id` only. (2) `terminal split` returns `result.split.handle` not `result.terminal.handle`. (3) init wait-1 keepalive+pretty mixed → whole-buffer parse miss → wait-2..12 empty ~10–16m after complete — JSON-sequence parse + stop opening wait after consumed worker_done. (4) fixed sleep 55–60 before wait → wait·liveness fusion. (5) multi-run same branch confuses UI — peer soft-warn; task-list has no worktree. (6) untyped unread can consume other-run lifecycle/gates — route messages. (7) maxConcurrent=2 needs per-task activeDispatchId. (8) speed: no review skip / no same-batch implement∥review; warm next role only; handoff latency fields. Dual Claude∥Codex re-verify of logic+speed drafts.
 
+
+- 2026-07-20 — **pack 1.3.2 mid-run soft reclaim:** dual Claude∥Codex review. Adopt opt-in in-phase reclaim with evidence escrow, two-phase commit, forbid `--tab`, plan-review hold until first implement gate, default keep, audit handle reserve. Reject early plan-review kill and pre-close mid_reclaimed mark.
+
 <!-- Append: YYYY-MM-DD — what failed, what fixed, command that worked -->
 
 
 ---
 
-# prompts/quick-command.txt
+# quick-command.txt
 
 ```text
-scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/scv/meta.json, $HOME/.orca/scv/LESSONS.md, and the orchestration skill. If this project has .orca/scv.md or .orca/PLAYBOOK.md, also follow it as project overlay. You are Grok coordinator: supervised feature-shipping DAG (prompt-first interview → Claude plan → Codex plan-review ↔ Claude fix → implement batches → gate → Claude code-review ↔ Codex fix → release → post-run AUDIT (time/stability only, keep ops) → RECLAIM this-run workers → FINAL). Coordination=supervised: inject lifecycle; single check --wait; hang retry max 1 per role; dispatch only this-run task ids. RPC ids: task=result.task.id; dispatch=result.dispatch.id; terminal create=result.terminal.handle; split=result.split.handle — never root envelope id. Wait: types=worker_done,escalation,decision_gate only (never heartbeat); consume 1 msg then act; drain unread with type/run routing (never drop unresolved decision_gate); heartbeat≠completion; parse check --wait as JSON sequence (skip _keepalive; ok===true + result.messages only); drop late lifecycle unless taskId+per-task dispatchId match this-run; after consumed worker_done do not open empty wait windows. Wait·liveness fusion: no fixed sleep 60; open wait after inject; early healthy≠done; Ready-no-tools≥90s=hung — no early-hung; do not re-inject stuck active-dispatch pane; fresh terminal + new dispatch. Terminal: first create then split+rename; idempotent reuse alive (title,role); one live handle per role; warm next role only. Recovery: uncommitted SSOT paths in resume spec; single edit owner. Max concurrent: 2 with per-task activeDispatchId. Speed: step-preserving only — kill coord overhead (parser miss, fixed sleep, tab churn); never skip review/gates; never same-batch implement∥code-review. Workers: grok/init:{grok -m grok-4.5 --reasoning-effort high} ; claude/plan:{claude --model opus --dangerously-skip-permissions} ; codex/plan-review:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; codex/implement:{codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access} ; claude/code-review:{claude --model opus --dangerously-skip-permissions} ; codex/review-fix:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; grok/release:{grok -m grok-4.5 --reasoning-effort high}. Prefer horizontal for review pairs. User-facing Korean. Docs prose default Korean (resolvedDocsLanguage). Intake: consume user prompt first — no premature estimated option menu; bare trigger → free-text once; RUN_ID after non-empty seed. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit under .scv/state/$RUN_ID/audit/ (time|stability only, no evolution, reuse Claude/Codex handles, prefer parallel). Reclaim createdByRun only; never reset --all. Goal (optional — from user prompt; ask free-text if missing):
+scv mode (user mode). Read and follow $HOME/.orca/scv/PLAYBOOK.md, $HOME/.orca/scv/meta.json, $HOME/.orca/scv/LESSONS.md, and the orchestration skill. If this project has .orca/scv.md or .orca/PLAYBOOK.md, also follow it as project overlay. You are Grok coordinator: supervised feature-shipping DAG (prompt-first interview → Claude plan → Codex plan-review ↔ Claude fix → implement batches → gate → Claude code-review ↔ Codex fix → release → post-run AUDIT (time/stability only, keep ops) → RECLAIM this-run workers → FINAL). Coordination=supervised: inject lifecycle; single check --wait; hang retry max 1 per role; dispatch only this-run task ids. RPC ids: task=result.task.id; dispatch=result.dispatch.id; terminal create=result.terminal.handle; split=result.split.handle — never root envelope id. Wait: types=worker_done,escalation,decision_gate only (never heartbeat); consume 1 msg then act; drain unread with type/run routing (never drop unresolved decision_gate); heartbeat≠completion; parse check --wait as JSON sequence (skip _keepalive; ok===true + result.messages only); drop late lifecycle unless taskId+per-task dispatchId match this-run; after consumed worker_done do not open empty wait windows. Wait·liveness fusion: no fixed sleep 60; open wait after inject; early healthy≠done; Ready-no-tools≥90s=hung — no early-hung; do not re-inject stuck active-dispatch pane; fresh terminal + new dispatch. Terminal: first create then split+rename; idempotent reuse alive (title,role); one live handle per role; warm next role only. Recovery: uncommitted SSOT paths in resume spec; single edit owner. Max concurrent: 2 with per-task activeDispatchId. Speed: step-preserving only — kill coord overhead (parser miss, fixed sleep, tab churn); never skip review/gates; never same-batch implement∥code-review. Workers: grok/init:{grok -m grok-4.5 --reasoning-effort high} ; claude/plan:{claude --model opus --dangerously-skip-permissions} ; codex/plan-review:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; codex/implement:{codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access} ; claude/code-review:{claude --model opus --dangerously-skip-permissions} ; codex/review-fix:{codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access} ; grok/release:{grok -m grok-4.5 --reasoning-effort high}. Prefer horizontal for review pairs. User-facing Korean. Docs prose default Korean (resolvedDocsLanguage). Intake: consume user prompt first — no premature estimated option menu; bare trigger → free-text once; RUN_ID after non-empty seed. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit under .scv/state/$RUN_ID/audit/ (time|stability only, no evolution, reuse Claude/Codex handles, prefer parallel). Reclaim createdByRun only; never reset --all. Mid-run soft reclaim (1.3.2): optional in-phase only (not a new step); default keep; exact createdByRun handles; evidence escrow before close; two-phase mid_reclaiming→verify→mid_reclaimed; never --tab; plan-review hold until first implement gate without scope expand; forbid during AUDIT/BLOCKED/open gate; reserve Claude1+Codex1 for audit; final AUDIT→RECLAIM unchanged. Goal (optional — from user prompt; ask free-text if missing):
 
 ```
