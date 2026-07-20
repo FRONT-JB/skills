@@ -12,7 +12,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (**1.3.7**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
+- packVersion: `meta.json` 의 `packVersion` (**1.3.9**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -22,10 +22,10 @@ coordinator 진행·질문·FINAL = **한국어**. role/path/task id/CLI 영문 
 
 | 표면 | 규칙 (상세 → UX.md) |
 |------|---------------------|
-| 채팅 | 한 줄: `**【 한글 phase 】** "scv_line" — 요약 · 다음: …` · `【 `/` 】` 공백 1칸 |
+| 채팅 | 한 줄: `**【한글 phase 】** "scv_line" — 요약 · 다음: …` · `】` 앞 공백 1칸만 (`【대기 】`) |
 | 탭 / `--display-name` | 한글 역할 라벨 (`계획 작성` …) |
 | `--task-title` | `[scv:$RUN_ID] 한글 phase · slug` |
-| wait shell description | `계획 작성 완료 대기 (worker_done)` · `Rolling wait…` 금지 |
+| wait shell description | `계획 작성 완료 대기` · bare `worker_done` / `Rolling wait…` 금지 (UX 1.3.9) |
 | 발화 시점 | phase 진입·dispatch·gate·blocked·FINAL 만 (soft-wait 스팸 금지) |
 | **사람 결정 게이트** | **AskUser 정확히 1회** (아래 절) · 본문 선택지 재질문 금지 |
 
@@ -71,7 +71,7 @@ Grok 팀장 세션의 **`ask_user_question` (AskUser)** 가 사람 확인 UI다.
 ```text
 1) 요약·표·경로 (정보)
 2) 선택: UX 라벨 한 줄 (질문 문장 없이)
-   예: **【 계획 승인 대기 】** "Orders, Cap'n?" — plan-review APPROVED · 승인 대기
+   예: **【계획 승인 대기 】** "Orders, Cap'n?" — plan-review APPROVED · 승인 대기
 3) AskUser 1회 (승인 / 수정 요청 / 중단 …)
 4) 금지: "이 계획으로 구현을 진행할까요?" 를 본문에 다시 쓰기
 5) 답 수신 전 implement dispatch / push / 파괴적 동작 금지
@@ -322,8 +322,8 @@ orca orchestration check --wait \
 | 완료 후 공회전 | worker_done **소비** + (edit 단계면) gate 증거 확인 후면 **추가 wait 창을 열지 말 것** (task-list completed 만으로 전진 금지 — `worker_done ≠ gate PASS`) |
 | post-inject / liveness | **고정 `sleep 60` 금지.** wait·liveness fusion(아래). hung 임계(Ready-no-tools ≥90s 등)는 유지 · **조기 hung 금지** |
 | peer 런 | runtime-global task 목록에 다른 `[scv:$OTHER]` 가 보이면 soft warn 한 줄. **title 만으로 공유 worktree 단정 금지**(task row에 branch 없음; terminal registry join 후에만 위험 승격). 값 변할 때만 고지 |
-| 사용자 안내 | phase 진입 시 한 줄: `**【 대기 】** "Affirmative." — …`. soft-timeout 마다 채팅 스팸 금지. |
-| wait shell description | 한글 필수: `계획 작성 완료 대기 (worker_done)`. `Rolling wait…` 금지. |
+| 사용자 안내 | phase 진입 시 한 줄: `**【대기 】** "Affirmative." — … · 다음: 작업 완료 대기`. bare `worker_done`/`heartbeat` 금지. soft-timeout 스팸 금지. |
+| wait shell description | 한글 필수: `계획 작성 완료 대기`. `(worker_done)` 괄호·`Rolling wait…` 금지. |
 
 선택/필수 상태 필드 → 아래 **run.json 스키마**. 병렬(`maxConcurrent: 2`) 시 **전역 단일 `activeDispatchId` 만으로 straggler 판정 금지** — task별 registry 사용.
 

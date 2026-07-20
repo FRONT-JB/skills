@@ -16,7 +16,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.**  
 **표시 연출 SSOT = `$HOME/.orca/scv/UX.md`.**  
 **Engine = `orchestration` skill** (`worker_done` structured flags only).  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.7**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.9**).
 
 | Role | Path |
 |------|------|
@@ -35,9 +35,10 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.7**).
 ## 사용자 대면 · 문서 언어
 
 - 진행·질문·FINAL = **한국어**. 상세 표 = **UX.md**.
-- 채팅 한 줄: `**【 계획 작성 】** "SCV good to go, sir." — … · 다음: …`
+- 채팅 한 줄: `**【계획 작성 】** "SCV good to go, sir." — … · 다음: 계획 검토` (bare `worker_done` 금지)
 - 탭 / `--display-name` 한글 · `--task-title` `[scv:$RUN_ID] 한글 · slug`
-- wait description: `계획 작성 완료 대기 (worker_done)` · `Rolling wait…` 금지
+- wait description: `계획 작성 완료 대기` · `(worker_done)`/`Rolling wait…` 금지
+- 엔진 타입 UI 치환: `worker_done`→작업 완료(대기) · `heartbeat`→생존 신호 (CLI 타입명은 유지)
 - docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
 - **Human decision gate = AskUser 1회** (plan 승인·범위 확장·P0/P1·push·reclaim…). 본문 선택지 재질문 금지. bare seed는 free-text 1회.
 

@@ -24,7 +24,7 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
-  [[ "$ver" == "1.3.7" ]] && ok "packVersion pin 1.3.7" || fail "packVersion want 1.3.7 got $ver"
+  [[ "$ver" == "1.3.9" ]] && ok "packVersion pin 1.3.9" || fail "packVersion want 1.3.9 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -35,6 +35,16 @@ if cmp -s "$ROOT/prompts/quick-command.txt" "$ROOT/prompts/quick-command.CANONIC
   ok "quick-command ≡ CANONICAL"
 else
   fail "quick-command drift vs CANONICAL"
+fi
+if grep -qE '완료 대기 \(worker_done\)|wait desc=.*\(worker_done\)' "$ROOT/prompts/quick-command.txt"; then
+  fail "quick-command still recommends (worker_done) in wait desc"
+else
+  ok "quick-command wait desc no engine parens"
+fi
+if grep -q '작업 완료' "$ROOT/prompts/quick-command.txt" && grep -q '생존 신호' "$ROOT/prompts/quick-command.txt"; then
+  ok "quick-command has user engine labels"
+else
+  fail "quick-command missing 작업 완료 / 생존 신호 labels"
 fi
 
 # --- PLAYBOOK CLI flags ---
@@ -59,9 +69,11 @@ grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.
 
 # --- UX (1.3.6 · display SSOT) ---
 grep -q 'UX.md' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK points to UX.md" || fail "PLAYBOOK missing UX.md pointer"
-grep -q '【 계획 작성 】' "$ROOT/UX.md" && ok "UX padded phase label" || fail "UX missing 【 계획 작성 】"
-grep -q '【 대기 】' "$ROOT/UX.md" && ok "UX padded wait label" || fail "UX missing 【 대기 】"
-grep -q '완료 대기 (worker_done)' "$ROOT/UX.md" && ok "UX wait description Korean" || fail "UX missing wait description"
+grep -q '【계획 작성 】' "$ROOT/UX.md" && ok "UX padded phase label" || fail "UX missing 【계획 작성 】"
+grep -q '【대기 】' "$ROOT/UX.md" && ok "UX padded wait label" || fail "UX missing 【대기 】"
+grep -q '계획 작성 완료 대기' "$ROOT/UX.md" && ok "UX wait description Korean" || fail "UX missing wait description"
+grep -q '작업 완료 대기' "$ROOT/UX.md" && ok "UX worker_done user label" || fail "UX missing 작업 완료 대기"
+grep -q 'forbidBareEngineTypesInChat\|bare.*worker_done\|엔진 타입' "$ROOT/UX.md" && ok "UX forbids bare engine types" || fail "UX missing bare-engine forbid"
 grep -q 'Rolling wait' "$ROOT/UX.md" && ok "UX forbids Rolling wait" || fail "UX missing Rolling wait forbid"
 grep -q 'display-name' "$ROOT/UX.md" && grep -q '계획 작성' "$ROOT/UX.md" && ok "UX display-name Korean" || fail "UX missing display-name Korean"
 
@@ -167,14 +179,19 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.7'
-assert m.get('ui',{}).get('bracketPadding')=='single-space-both-sides'
+assert m.get('packVersion')=='1.3.9'
+assert m.get('ui',{}).get('bracketPadding')=='space-before-close-only'
+assert m.get('ui',{}).get('forbidBareEngineTypesInChat') is True
+assert m.get('ui',{}).get('engineTypeUserLabels',{}).get('worker_done')=='작업 완료'
+assert m.get('ui',{}).get('engineTypeUserLabels',{}).get('heartbeat')=='생존 신호'
+assert 'worker_done' not in m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan','')
 assert m.get('ui',{}).get('terminalTitles',{}).get('plan')=='계획 작성'
 assert m.get('ui',{}).get('displayNameRequiredKorean') is True
 assert m.get('ui',{}).get('forbidWaitDescriptionEnglish') is True
 assert m.get('ui',{}).get('workerDoneStructuredOnly') is True
 assert m.get('ui',{}).get('lifecycleSpecRequired') is True
-assert 'worker_done' in m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan','')
+assert m.get('ui',{}).get('forbidWaitDescriptionEngineParens') is True
+assert m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan')=='계획 작성 완료 대기'
 assert m.get('intake',{}).get('mode')=='prompt-first'
 assert m.get('audit',{}).get('forbidEvolution') is True
 assert m.get('audit',{}).get('alwaysFreshSessions') is True
