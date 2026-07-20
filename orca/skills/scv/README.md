@@ -7,7 +7,7 @@ Supervised feature-shipping harness for Orca.
 | **Source tree (repo SSOT)** | `$HOME/Desktop/jb/skills/orca/skills/scv/` |
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK | `$HOME/.orca/scv/PLAYBOOK.md` |
-| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.2**) |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.3**) |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` (+ archive) |
 | Canonical SKILL | `$HOME/.orca/scv/SKILL.md` |

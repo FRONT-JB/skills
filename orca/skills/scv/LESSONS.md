@@ -16,9 +16,11 @@ Append short, dated bullets after hang/recovery or user corrections. Older detai
 8. Intake prompt-first; P0 never SUCCESS without human risk accept; scope expand = user + plan-review re-pass.
 9. Close order: AUDIT → RECLAIM → CLOSING → FINAL. Audit = time/stability only (no evolution). Reclaim allowlist only; never `reset --all`.
 10. Mid-run soft reclaim (1.3.2): opt-in in-phase only; default keep; evidence escrow; no `--tab`; two-phase commit. Final RECLAIM unchanged.
+11. UX (1.3.3): phase 진입 시 두 줄 연출 `【 한글라벨 】 "scv_line"` + 한글 설명 (`【 `/` 】` 앞뒤 공백 1칸 · `scv ·` 접두 금지). 탭 타이틀 한글 고정. soft-wait/heartbeat 스팸 금지. 표 = PLAYBOOK.
 
 ## Session log (recent)
 
+- 2026-07-20 — pack 1.3.3 UX: SCV dialogue lines + Korean terminal titles (display-only; orchestration unchanged).
 - 2026-07-20 — pack 1.3.2 mid-run soft reclaim (opt-in, default keep, escrow, no `--tab`).
 - 2026-07-20 — pack 1.3.1 RPC id paths, JSON-sequence wait parse, wait·liveness fusion, per-task dispatch, step-preserving speed.
 - 2026-07-18/19 — pack 1.3.0 coordination hygiene (NDJSON parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT).

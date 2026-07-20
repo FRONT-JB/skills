@@ -14,7 +14,7 @@ description: >
 User-owned Orca mode pack for **feature shipping** (plan → implement → quality gate → code-review → release → **audit → reclaim** → FINAL).
 
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.** Engine = `orchestration` skill.  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.2**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.3**).
 
 | Role | Path |
 |------|------|
@@ -31,7 +31,14 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.2**).
 
 ## 사용자 대면 · 문서 언어
 
-- 진행·질문·FINAL = **한국어**. role/path/task id/CLI = 영문 허용.
+- 진행·질문·FINAL = **한국어**. role/path/task id/CLI = 영문 허용. `scv_line` 인용만 영문 flavor.
+- **진행 내레이션 (두 줄, `scv ·` 접두 금지, `【 `·` 】` 앞뒤 공백 1칸):**
+  ```text
+  【 계획 작성 】 "SCV good to go, sir."
+  Claude가 plan.md 작성 중 — worker_done까지 대기합니다.
+  ```
+  phase 진입·dispatch·gate·blocked·FINAL 만. soft-wait/heartbeat 스팸 금지. 표 = PLAYBOOK.
+- **터미널 타이틀 = 한글 고정** (`계획 작성`, `구현`, …). create `--title` / split 직후 `rename`. 표 = PLAYBOOK.
 - 커밋 docs 프로즈 기본 **ko** (`resolvedDocsLanguage`). finding P0 아님.
 
 ## Intake (prompt-first)

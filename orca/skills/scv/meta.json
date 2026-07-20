@@ -1,7 +1,7 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.2",
+  "packVersion": "1.3.3",
   "coordination": "supervised",
   "coordinator": {
     "agent": "grok"
@@ -166,14 +166,32 @@
     "codexFlags": "Terminal workers: -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec: no -a; use --dangerously-bypass-approvals-and-sandbox.",
     "codexStuck": "Update/shell/Ready-no-tools after inject = hung. No re-inject stuck pane; ready + fresh terminal + new dispatch. Max 1 hang recovery per role×task.",
     "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
-    "userFacingLanguage": "Korean for progress/questions/FINAL; English OK for roles/paths/ids/CLI",
+    "userFacingLanguage": "Korean for progress/questions/FINAL; English OK for roles/paths/ids/CLI and quoted scv_line only",
+    "userFacingNarration": "Two lines: 【 한글 phase 】 \"scv_line\" then Korean one-liner. Equal space after 【 and before 】. No 【scv ·】 prefix. Tables in PLAYBOOK. Phase enter only.",
+    "terminalTitles": "Korean fixed labels per role (계획 작성, 구현, …). create --title / split+rename. See PLAYBOOK.",
     "docsLanguage": "Default ko for committed docs prose. Resolve: user > .orca/scv.md docsLanguage > defaultDocsLanguage.",
     "taskCreateCli": "task-create --task-title + --spec (not --title). taskId = result.task.id only.",
     "peerRuns": "Soft-observe other [scv:*] tasks; task-list has no branch field.",
     "changelog_1_3_0": "2026-07-19: coordination hygiene — NDJSON wait parse, straggler drop, Codex stuck recovery, terminal idempotent, recovery SSOT",
     "changelog_1_3_1": "2026-07-20: RPC id paths; JSON-sequence wait; per-task activeDispatch; wait·liveness fusion; step-preserving speed",
     "changelog_1_3_2": "2026-07-20: mid-run soft reclaim — opt-in, default keep, evidence escrow, two-phase, no --tab",
+    "changelog_1_3_3": "2026-07-20: UX display — SCV dialogue lines + Korean terminal titles (orchestration behavior unchanged)",
     "changelog_docs_hygiene": "2026-07-20: tooling+docs slim (LESSONS hard list, quick-command, SKILL, pack pointer, notes, sync-from-source, selfcheck) — orchestration behavior unchanged"
+  },
+  "ui": {
+    "narrationFormat": "【 {phaseLabelKo} 】 \"{scvLine}\"\\n{detailKo}",
+    "bracketPadding": "single-space-both-sides",
+    "forbidScvDotPrefix": true,
+    "scvLineOnPhaseEnterOnly": true,
+    "terminalTitles": {
+      "init": "초기화",
+      "plan": "계획 작성",
+      "plan-review": "계획 검토",
+      "implement": "구현",
+      "code-review": "코드 리뷰",
+      "review-fix": "리뷰 수정",
+      "release": "릴리스"
+    }
   },
   "midRunReclaim": {
     "enabled": true,

@@ -22,8 +22,8 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
-  # pin: current ship version (behavior pack)
-  [[ "$ver" == "1.3.2" ]] && ok "packVersion pin 1.3.2" || fail "packVersion want 1.3.2 got $ver"
+  # pin: current ship version
+  [[ "$ver" == "1.3.3" ]] && ok "packVersion pin 1.3.3" || fail "packVersion want 1.3.3 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -55,6 +55,11 @@ grep -q 'wait·liveness fusion\|Wait · liveness fusion\|liveness fusion' "$ROOT
 grep -q 'tasksById\|per-task\|per task' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK per-task dispatch" || fail "PLAYBOOK missing per-task dispatch"
 grep -q '900000\|waitTimeoutMs\|전체.*budget\|budget 가이드' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK rolling vs budget" || fail "PLAYBOOK missing budget vs rolling"
 grep -q 'decision_gate' "$ROOT/PLAYBOOK.md" && grep -q '유실' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK gate drain safety" || ok "PLAYBOOK gate drain (soft)"
+
+# --- PLAYBOOK UX narration (1.3.3) ---
+grep -q '【 계획 작성 】' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK padded phase label" || fail "PLAYBOOK missing 【 계획 작성 】"
+grep -q '【 대기 】' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK padded wait label" || fail "PLAYBOOK missing 【 대기 】"
+grep -q 'terminalTitle\|터미널 타이틀' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK terminal titles" || fail "PLAYBOOK missing terminal titles"
 
 # --- PLAYBOOK mid-run reclaim (1.3.2) ---
 grep -q 'Mid-run Soft Reclaim\|mid-run soft reclaim\|8b. Mid-run' "$ROOT/PLAYBOOK.md" && ok "PLAYBOOK mid-run reclaim" || fail "PLAYBOOK missing mid-run reclaim"
@@ -112,7 +117,9 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.2'
+assert m.get('packVersion')=='1.3.3'
+assert m.get('ui',{}).get('bracketPadding')=='single-space-both-sides'
+assert m.get('ui',{}).get('terminalTitles',{}).get('plan')=='계획 작성'
 assert m.get('intake',{}).get('mode')=='prompt-first'
 assert m.get('audit',{}).get('forbidEvolution') is True
 assert len(m.get('workers',[]))==7
