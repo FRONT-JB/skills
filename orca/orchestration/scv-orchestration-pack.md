@@ -1,7 +1,7 @@
 # scv 조율 모드 팩 (사용자 맞춤)
 
-> **버전:** packVersion **1.3.6** (structured worker_done · UX.md · LIFECYCLE · orchestration 동작 불변)  
-> **파일 SSOT (repo):** `$HOME/Desktop/jb/skills/orca/skills/scv/`  
+> **버전:** packVersion **1.3.10** (OpenCode coordinator · intake roadmap draft)
+> **파일 SSOT (repo):** `$HOME/Desktop/project/jb/skills/orca/skills/scv/`
 > **Install:** `$HOME/.orca/scv/` · OpenCode mirror `$HOME/.config/opencode/skills/scv/SKILL.md`
 
 이 문서는 **설치 포인터**입니다. 행동 계약 본문은 소스 트리에 있습니다.
@@ -21,14 +21,14 @@
 ## 설치
 
 ```bash
-"$HOME/Desktop/jb/skills/orca/skills/scv/sync-from-source.sh"
+"$HOME/Desktop/project/jb/skills/orca/skills/scv/sync-from-source.sh"
 ```
 
 또는:
 
 ```bash
 rsync -a --delete \
-  "$HOME/Desktop/jb/skills/orca/skills/scv/" \
+  "$HOME/Desktop/project/jb/skills/orca/skills/scv/" \
   "$HOME/.orca/scv/"
 mkdir -p "$HOME/.config/opencode/skills/scv"
 cp "$HOME/.orca/scv/SKILL.md" "$HOME/.config/opencode/skills/scv/SKILL.md"

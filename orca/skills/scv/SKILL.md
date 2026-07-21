@@ -30,7 +30,7 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.10**).
 | self-check | `$HOME/.orca/scv/scv-selfcheck.sh` |
 | Canonical SKILL | `$HOME/.orca/scv/SKILL.md` |
 | OpenCode mirror | `$HOME/.config/opencode/skills/scv/SKILL.md` (byte-identical) |
-| Source tree | `$HOME/Desktop/jb/skills/orca/skills/scv/` |
+| Source tree | `$HOME/Desktop/project/jb/skills/orca/skills/scv/` |
 
 ## 사용자 대면 · 문서 언어
 

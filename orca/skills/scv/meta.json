@@ -179,8 +179,8 @@
   },
   "notes": {
     "ssot": "Behavior SSOT = PLAYBOOK.md. Hard list = LESSONS.md. Structured contracts = this file (wait, rpcIdPaths, speed, audit, reclaim, midRunReclaim, workers). Do not invent models/flags.",
-    "sourceTree": "$HOME/Desktop/jb/skills/orca/skills/scv/",
-    "sourcePackDoc": "$HOME/Desktop/jb/skills/orca/orchestration/scv-orchestration-pack.md (install pointer only)",
+    "sourceTree": "$HOME/Desktop/project/jb/skills/orca/skills/scv/",
+    "sourcePackDoc": "$HOME/Desktop/project/jb/skills/orca/orchestration/scv-orchestration-pack.md (install pointer only)",
     "skillInstall": "Canonical SKILL = $HOME/.orca/scv/SKILL.md; OpenCode mirror $HOME/.config/opencode/skills/scv/SKILL.md. Prefer ./sync-from-source.sh",
     "claudeModels": "plan and code-review: opus + --dangerously-skip-permissions. Do not invent full model ids after hang.",
     "codexFlags": "Terminal workers: -a never -s danger-full-access. plan-review=sol/xhigh; implement=luna/xhigh; review-fix=sol/high. codex exec: no -a; use --dangerously-bypass-approvals-and-sandbox.",

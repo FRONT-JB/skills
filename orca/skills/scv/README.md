@@ -4,7 +4,7 @@ Supervised feature-shipping harness for Orca.
 
 | Item | Path |
 |------|------|
-| **Source tree (repo SSOT)** | `$HOME/Desktop/jb/skills/orca/skills/scv/` |
+| **Source tree (repo SSOT)** | `$HOME/Desktop/project/jb/skills/orca/skills/scv/` |
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK | `$HOME/.orca/scv/PLAYBOOK.md` |
 | meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.10**) |
@@ -13,7 +13,7 @@ Supervised feature-shipping harness for Orca.
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` (+ archive) |
 | Canonical SKILL | `$HOME/.orca/scv/SKILL.md` |
 | OpenCode skill mirror | `$HOME/.config/opencode/skills/scv/SKILL.md` |
-| Pack doc (pointer) | `$HOME/Desktop/jb/skills/orca/orchestration/scv-orchestration-pack.md` |
+| Pack doc (pointer) | `$HOME/Desktop/project/jb/skills/orca/orchestration/scv-orchestration-pack.md` |
 
 **Triggers:** `scv`, `/scv`, `scv-harness`  
 **Coordinator:** OpenCode Go GLM-5.2
@@ -27,9 +27,9 @@ Tooling+docs slim does not change pipeline steps or worker roles (orchestration 
 
 ```bash
 # from repo source tree
-"$HOME/Desktop/jb/skills/orca/skills/scv/sync-from-source.sh"
+"$HOME/Desktop/project/jb/skills/orca/skills/scv/sync-from-source.sh"
 # equivalent:
-#   rsync -a --delete "$HOME/Desktop/jb/skills/orca/skills/scv/" "$HOME/.orca/scv/"
+#   rsync -a --delete "$HOME/Desktop/project/jb/skills/orca/skills/scv/" "$HOME/.orca/scv/"
 #   mkdir -p "$HOME/.config/opencode/skills/scv"
 #   cp "$HOME/.orca/scv/SKILL.md" "$HOME/.config/opencode/skills/scv/SKILL.md"
 #   "$HOME/.orca/scv/scv-selfcheck.sh"

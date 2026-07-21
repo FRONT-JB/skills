@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Sync repo SSOT → install root + OpenCode SKILL mirror, then self-check.
-# Source: $HOME/Desktop/jb/skills/orca/skills/scv/  (override with SCV_SOURCE)
+# Source: $HOME/Desktop/project/jb/skills/orca/skills/scv/  (override with SCV_SOURCE)
 set -euo pipefail
 SOURCE="${SCV_SOURCE:-$HOME/Desktop/project/jb/skills/orca/skills/scv}"
 DEST="${SCV_HOME:-$HOME/.orca/scv}"
