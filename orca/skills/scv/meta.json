@@ -1,10 +1,10 @@
 {
   "modeName": "scv",
   "displayName": "scv",
-  "packVersion": "1.3.9",
+  "packVersion": "1.3.10",
   "coordination": "supervised",
   "coordinator": {
-    "agent": "grok"
+    "agent": "opencode"
   },
   "maxConcurrent": 2,
   "worktreePolicy": "active",
@@ -20,7 +20,7 @@
   "templatesDir": "$HOME/.orca/scv/templates/",
   "defaultDocsLanguage": "ko",
   "skillCanonical": "$HOME/.orca/scv/SKILL.md",
-  "skillMirror": "$HOME/.grok/skills/scv/SKILL.md",
+  "skillMirror": "$HOME/.config/opencode/skills/scv/SKILL.md",
   "wait": {
     "types": "worker_done,escalation,decision_gate",
     "forbidHeartbeatInWaitTypes": true,
@@ -99,7 +99,13 @@
   "intake": {
     "mode": "prompt-first",
     "forbidPrematureOptionMenu": true,
-    "runIdAfterNonEmptySeed": true
+    "runIdAfterNonEmptySeed": true,
+    "roadmapDraft": true,
+    "roadmapExploreDepth": "quick-file-list",
+    "roadmapTemplate": "templates/roadmap.md",
+    "roadmapPath": ".scv/state/$RUN_ID/brief/roadmap.md",
+    "roadmapForbidDeepStructure": true,
+    "roadmapTemplateFixed": true
   },
   "finalSections": [
     "요약",
@@ -119,8 +125,8 @@
   "workers": [
     {
       "role": "init",
-      "agent": "grok",
-      "command": "grok -m grok-4.5 --reasoning-effort high",
+      "agent": "opencode",
+      "command": "opencode -m opencode-go/glm-5.2 --auto",
       "ownership": "edit"
     },
     {
@@ -132,13 +138,13 @@
     {
       "role": "plan-review",
       "agent": "codex",
-      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"high\" -a never -s danger-full-access",
+      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"xhigh\" -a never -s danger-full-access",
       "ownership": "review-only"
     },
     {
       "role": "implement",
       "agent": "codex",
-      "command": "codex -m gpt-5.6-sol -c model_reasoning_effort=\"xhigh\" -a never -s danger-full-access",
+      "command": "codex -m gpt-5.6-luna -c model_reasoning_effort=\"xhigh\" -a never -s danger-full-access",
       "ownership": "edit"
     },
     {
@@ -155,8 +161,8 @@
     },
     {
       "role": "release",
-      "agent": "grok",
-      "command": "grok -m grok-4.5 --reasoning-effort high",
+      "agent": "opencode",
+      "command": "opencode -m opencode-go/glm-5.2 --auto",
       "ownership": "edit"
     }
   ],
@@ -175,9 +181,9 @@
     "ssot": "Behavior SSOT = PLAYBOOK.md. Hard list = LESSONS.md. Structured contracts = this file (wait, rpcIdPaths, speed, audit, reclaim, midRunReclaim, workers). Do not invent models/flags.",
     "sourceTree": "$HOME/Desktop/jb/skills/orca/skills/scv/",
     "sourcePackDoc": "$HOME/Desktop/jb/skills/orca/orchestration/scv-orchestration-pack.md (install pointer only)",
-    "skillInstall": "Canonical SKILL = $HOME/.orca/scv/SKILL.md; mirror $HOME/.grok/skills/scv/SKILL.md. Prefer ./sync-from-source.sh",
+    "skillInstall": "Canonical SKILL = $HOME/.orca/scv/SKILL.md; OpenCode mirror $HOME/.config/opencode/skills/scv/SKILL.md. Prefer ./sync-from-source.sh",
     "claudeModels": "plan and code-review: opus + --dangerously-skip-permissions. Do not invent full model ids after hang.",
-    "codexFlags": "Terminal workers: -a never -s danger-full-access. implement=xhigh; review/fix=high. codex exec: no -a; use --dangerously-bypass-approvals-and-sandbox.",
+    "codexFlags": "Terminal workers: -a never -s danger-full-access. plan-review=sol/xhigh; implement=luna/xhigh; review-fix=sol/high. codex exec: no -a; use --dangerously-bypass-approvals-and-sandbox.",
     "codexStuck": "Update/shell/Ready-no-tools after inject = hung. No re-inject stuck pane; ready + fresh terminal + new dispatch. Max 1 hang recovery per role×task.",
     "paths": "Use $HOME or repo-relative paths. Never commit absolute /Users/<name>/ paths. Never stage .scv/**.",
     "userFacingLanguage": "Korean for progress/questions/FINAL; English OK for roles/paths/ids/CLI and quoted scv_line only",
@@ -198,12 +204,13 @@
     "uxSsot": "Display SSOT = UX.md + meta.ui. Behavior SSOT = PLAYBOOK.md. Engine worker_done CLI = orchestration skill structured flags only.",
     "workerDoneCli": "Prefer --task-id/--dispatch-id/--files-modified/--report-path. Never combine with --payload. LIFECYCLE block required at top of every task --spec.",
     "changelog_1_3_5": "2026-07-20: structured worker_done only; UX.md extract; LIFECYCLE in specs; selfcheck anchors (orchestration behavior unchanged)",
-    "humanGates": "Human decision gates: AskUser (ask_user_question) exactly once. No prose re-ask. Intake empty seed = free-text once. Coordinator Grok only.",
+    "humanGates": "Human decision gates: AskUser (ask_user_question) exactly once. No prose re-ask. Intake empty seed = free-text once. Coordinator only.",
     "changelog_1_3_6": "2026-07-20: AskUser-only human decision gates; no duplicate plan-approve prose (orchestration pipeline unchanged)",
     "sessionReuse": "same role + same phase loop → resume; cross-role/cross-phase/idle-pick/command-compatible warm FORBIDDEN; phase-end close default; file handoff; Audit always fresh",
     "changelog_1_3_7": "2026-07-20: full session reuse policy — same-role loop only; phase-end close; Audit always fresh; file handoff (templates/handoff.md)",
     "changelog_1_3_8": "2026-07-20: UX bracket padding — space before 】 only (【대기 】); forbid both-sides / open-only",
-    "changelog_1_3_9": "2026-07-20: user UI hides engine types — worker_done→작업 완료(대기); heartbeat→생존 신호; wait desc no (worker_done)"
+    "changelog_1_3_9": "2026-07-20: user UI hides engine types — worker_done→작업 완료(대기); heartbeat→생존 신호; wait desc no (worker_done)",
+    "changelog_1_3_10": "2026-07-21: intake roadmap draft — coordinator writes brief/roadmap.md (work + candidate file paths, quick file-list only) and hands off to plan worker; plan expands from draft, never blank slate"
   },
   "ui": {
     "narrationFormat": "**【{phaseLabelKo} 】** \"{scvLine}\" — {summaryKo} · 다음: {nextKo}",

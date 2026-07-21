@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Sync repo SSOT → install root + Grok SKILL mirror, then self-check.
+# Sync repo SSOT → install root + OpenCode SKILL mirror, then self-check.
 # Source: $HOME/Desktop/jb/skills/orca/skills/scv/  (override with SCV_SOURCE)
 set -euo pipefail
-SOURCE="${SCV_SOURCE:-$HOME/Desktop/jb/skills/orca/skills/scv}"
+SOURCE="${SCV_SOURCE:-$HOME/Desktop/project/jb/skills/orca/skills/scv}"
 DEST="${SCV_HOME:-$HOME/.orca/scv}"
-MIRROR="${SCV_SKILL_MIRROR:-$HOME/.grok/skills/scv/SKILL.md}"
+MIRROR="${SCV_SKILL_MIRROR:-$HOME/.config/opencode/skills/scv/SKILL.md}"
 
 if [[ ! -d "$SOURCE" ]]; then
   echo "missing source: $SOURCE" >&2

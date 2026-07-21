@@ -4,7 +4,7 @@ description: >
   Run the user-defined Orca orchestration mode pack "scv" (supervised feature
   shipping harness). Trigger when user says /scv, scv, scv-harness, or asks to
   run the scv plan→implement→review→release pipeline.
-  Coordinator=Grok. Cross-review: plan Claude write / Codex review; code Codex
+  Coordinator=OpenCode Go GLM-5.2. Cross-review: plan Claude write / Codex review; code Codex
   write / Claude review. Loads $HOME/.orca/scv/PLAYBOOK.md and meta.json.
   Use orchestration skill for all orca orchestration commands.
 ---
@@ -16,7 +16,7 @@ User-owned Orca mode pack for **feature shipping** (plan → implement → quali
 **행동 계약 SSOT = `$HOME/.orca/scv/PLAYBOOK.md`.**  
 **표시 연출 SSOT = `$HOME/.orca/scv/UX.md`.**  
 **Engine = `orchestration` skill** (`worker_done` structured flags only).  
-Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.9**).
+Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.10**).
 
 | Role | Path |
 |------|------|
@@ -29,7 +29,7 @@ Live hard list = `LESSONS.md`. Config = `meta.json` (`packVersion` **1.3.9**).
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` |
 | self-check | `$HOME/.orca/scv/scv-selfcheck.sh` |
 | Canonical SKILL | `$HOME/.orca/scv/SKILL.md` |
-| Grok mirror | `$HOME/.grok/skills/scv/SKILL.md` (byte-identical) |
+| OpenCode mirror | `$HOME/.config/opencode/skills/scv/SKILL.md` (byte-identical) |
 | Source tree | `$HOME/Desktop/jb/skills/orca/skills/scv/` |
 
 ## 사용자 대면 · 문서 언어
@@ -59,7 +59,8 @@ orca orchestration send --to <coord> --type worker_done \
 1. 사용자 메시지에서 seed 추출 (트리거 제외).
 2. seed 있음 → 요약 후 모호성만. **추정 옵션 메뉴 선제 금지.**
 3. bare `/scv` → 자유 서술 1회. orphan RUN_ID 금지.
-4. **non-empty seed 후** RUN_ID · state · brief → 워커 dispatch.
+4. **non-empty seed 후** RUN_ID · state · brief.
+5. Goal·범위 확정 직후 **로드맵 초안** 작성(`brief/roadmap.md`) — 수행 작업 요약 + 수정 영역 후보(파일 경로 목록, quick file-list only). JSX/구조 심층 분석 금지(plan 워커 역할). 이 초안을 plan 워커 handoff 로 전달.
 
 ## When invoked
 
@@ -123,13 +124,13 @@ preflight → seed/interview → (init?) → Claude plan
 
 | role | command |
 |------|---------|
-| init | `grok -m grok-4.5 --reasoning-effort high` |
+| init | `opencode -m opencode-go/glm-5.2 --auto` |
 | plan | `claude --model opus --dangerously-skip-permissions` |
-| plan-review | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` |
-| implement | `codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access` |
+| plan-review | `codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access` |
+| implement | `codex -m gpt-5.6-luna -c model_reasoning_effort="xhigh" -a never -s danger-full-access` |
 | code-review | `claude --model opus --dangerously-skip-permissions` |
 | review-fix | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` |
-| release | `grok -m grok-4.5 --reasoning-effort high` |
+| release | `opencode -m opencode-go/glm-5.2 --auto` |
 
 ## Anti-patterns (see PLAYBOOK)
 

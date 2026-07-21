@@ -7,16 +7,16 @@ Supervised feature-shipping harness for Orca.
 | **Source tree (repo SSOT)** | `$HOME/Desktop/jb/skills/orca/skills/scv/` |
 | Install root | `$HOME/.orca/scv/` |
 | PLAYBOOK | `$HOME/.orca/scv/PLAYBOOK.md` |
-| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.9**) |
+| meta | `$HOME/.orca/scv/meta.json` (`packVersion` **1.3.10**) |
 | UX (display) | `$HOME/.orca/scv/UX.md` |
 | quick-command | `$HOME/.orca/scv/prompts/quick-command.txt` |
 | LESSONS | `$HOME/.orca/scv/LESSONS.md` (+ archive) |
 | Canonical SKILL | `$HOME/.orca/scv/SKILL.md` |
-| Grok skill mirror | `$HOME/.grok/skills/scv/SKILL.md` |
+| OpenCode skill mirror | `$HOME/.config/opencode/skills/scv/SKILL.md` |
 | Pack doc (pointer) | `$HOME/Desktop/jb/skills/orca/orchestration/scv-orchestration-pack.md` |
 
 **Triggers:** `scv`, `/scv`, `scv-harness`  
-**Coordinator:** Grok  
+**Coordinator:** OpenCode Go GLM-5.2
 
 **Pipeline:** preflight → (init?) → plan → plan-review → implement → gate → code-review → release → **AUDIT → RECLAIM → CLOSING → FINAL**
 
@@ -30,8 +30,8 @@ Tooling+docs slim does not change pipeline steps or worker roles (orchestration 
 "$HOME/Desktop/jb/skills/orca/skills/scv/sync-from-source.sh"
 # equivalent:
 #   rsync -a --delete "$HOME/Desktop/jb/skills/orca/skills/scv/" "$HOME/.orca/scv/"
-#   mkdir -p "$HOME/.grok/skills/scv"
-#   cp "$HOME/.orca/scv/SKILL.md" "$HOME/.grok/skills/scv/SKILL.md"
+#   mkdir -p "$HOME/.config/opencode/skills/scv"
+#   cp "$HOME/.orca/scv/SKILL.md" "$HOME/.config/opencode/skills/scv/SKILL.md"
 #   "$HOME/.orca/scv/scv-selfcheck.sh"
 ```
 

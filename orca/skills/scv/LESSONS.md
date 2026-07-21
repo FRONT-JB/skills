@@ -19,9 +19,11 @@ Engine lifecycle send = orchestration skill. Append short, dated bullets after h
 11. **worker_done/heartbeat:** structured flags only (`--task-id` + `--dispatch-id` …). **Never** `--payload` with those flags. Success once; CLI "not both" → fix & retry once. Spec top: LIFECYCLE block (PLAYBOOK).
 12. **UX:** one-line chat + Korean display-name/tab + wait description. Bracket = `【라벨 】`. User chat: never bare `worker_done`/`heartbeat` → `작업 완료 대기`/`생존 신호`. Tables = `UX.md` / `meta.ui`.
 13. **Human gates:** AskUser exactly once (plan approve, scope expand, P0/P1 risk, push, reclaim opt-in, …). No prose re-ask. Intake empty seed stays free-text once (no premature menu).
+14. **Intake roadmap draft:** after Goal/scope confirm, coordinator MUST write `brief/roadmap.md` (work summary + candidate file paths, quick file-list only — JSX/structure deep-dive forbidden) and pass it as handoff to plan worker. plan worker expands from this draft — never from a blank slate.
 
 ## Session log (recent)
 
+- 2026-07-21 — pack 1.3.10: intake roadmap draft — coordinator writes `brief/roadmap.md` (work summary + candidate file paths, quick file-list only, no JSX/structure deep-dive) and hands off to plan worker. plan worker expands plan.md from this draft. Fixes over-deep intake exploration (very-thorough JSX analysis) that belonged to plan.
 - 2026-07-20 — pack 1.3.9: user UI engine-type labels — `worker_done`→작업 완료(대기), `heartbeat`→생존 신호; wait desc without engine parens.
 - 2026-07-20 — pack 1.3.8: UX bracket padding — `【대기 】` (space before 】 only; both-sides / open-only forbidden).
 - 2026-07-20 — pack 1.3.7: full session reuse policy (same-role loop only; phase-end close; Audit always fresh; file handoff).

@@ -3,9 +3,9 @@
 set -euo pipefail
 ROOT="${SCV_HOME:-$HOME/.orca/scv}"
 SKILL_CANON="${SCV_SKILL_CANON:-$ROOT/SKILL.md}"
-SKILL_MIRROR="${SCV_SKILL_MIRROR:-$HOME/.grok/skills/scv/SKILL.md}"
-ORCH_SKILL="${ORCH_SKILL:-$HOME/Desktop/jb/skills/orca/skills/orchestration/SKILL.md}"
-ORCH_MIRROR="${ORCH_MIRROR:-$HOME/.grok/skills/orchestration/SKILL.md}"
+SKILL_MIRROR="${SCV_SKILL_MIRROR:-$HOME/.config/opencode/skills/scv/SKILL.md}"
+ORCH_SKILL="${ORCH_SKILL:-$HOME/Desktop/project/jb/skills/orca/skills/orchestration/SKILL.md}"
+ORCH_MIRROR="${ORCH_MIRROR:-$HOME/.agents/skills/orchestration/SKILL.md}"
 err=0
 
 ok() { echo "OK  $*"; }
@@ -15,7 +15,7 @@ echo "scv self-check · root=$ROOT"
 
 # --- files ---
 for f in PLAYBOOK.md UX.md meta.json LESSONS.md prompts/quick-command.txt prompts/quick-command.CANONICAL.txt \
-  templates/plan.ko.md templates/ARCHITECTURE.ko.md SKILL.md; do
+  templates/plan.ko.md templates/ARCHITECTURE.ko.md templates/roadmap.md templates/handoff.md SKILL.md; do
   if [[ -f "$ROOT/$f" ]]; then ok "file $f"; else fail "missing $f"; fi
 done
 
@@ -24,7 +24,7 @@ if python3 -c "import json; json.load(open('$ROOT/meta.json'))" 2>/dev/null; the
   ok "meta.json parses"
   ver=$(python3 -c "import json; print(json.load(open('$ROOT/meta.json')).get('packVersion',''))")
   [[ -n "$ver" ]] && ok "packVersion=$ver" || fail "packVersion missing"
-  [[ "$ver" == "1.3.9" ]] && ok "packVersion pin 1.3.9" || fail "packVersion want 1.3.9 got $ver"
+  [[ "$ver" == "1.3.10" ]] && ok "packVersion pin 1.3.10" || fail "packVersion want 1.3.10 got $ver"
 else
   fail "meta.json invalid JSON"
   ver=""
@@ -99,12 +99,12 @@ if [[ -f "$ORCH_SKILL" ]]; then
   fi
   if [[ -f "$ORCH_MIRROR" ]]; then
     if cmp -s "$ORCH_SKILL" "$ORCH_MIRROR"; then
-      ok "orchestration SKILL repo ≡ grok mirror"
+      ok "orchestration SKILL repo ≡ OpenCode runtime"
     else
       fail "orchestration SKILL drift — cp $ORCH_SKILL $ORCH_MIRROR"
     fi
   else
-    fail "orchestration mirror missing at $ORCH_MIRROR"
+    fail "orchestration runtime missing at $ORCH_MIRROR"
   fi
 else
   fail "orchestration skill missing at $ORCH_SKILL"
@@ -179,7 +179,7 @@ n=$(python3 -c "import json; print(len(json.load(open('$ROOT/meta.json')).get('w
 python3 -c "
 import json
 m=json.load(open('${ROOT}/meta.json'))
-assert m.get('packVersion')=='1.3.9'
+assert m.get('packVersion')=='1.3.10'
 assert m.get('ui',{}).get('bracketPadding')=='space-before-close-only'
 assert m.get('ui',{}).get('forbidBareEngineTypesInChat') is True
 assert m.get('ui',{}).get('engineTypeUserLabels',{}).get('worker_done')=='작업 완료'
@@ -193,6 +193,11 @@ assert m.get('ui',{}).get('lifecycleSpecRequired') is True
 assert m.get('ui',{}).get('forbidWaitDescriptionEngineParens') is True
 assert m.get('ui',{}).get('waitDescriptionExamples',{}).get('plan')=='계획 작성 완료 대기'
 assert m.get('intake',{}).get('mode')=='prompt-first'
+assert m.get('intake',{}).get('roadmapDraft') is True
+assert m.get('intake',{}).get('roadmapExploreDepth')=='quick-file-list'
+assert m.get('intake',{}).get('roadmapForbidDeepStructure') is True
+assert m.get('intake',{}).get('roadmapTemplate')=='templates/roadmap.md'
+assert m.get('intake',{}).get('roadmapTemplateFixed') is True
 assert m.get('audit',{}).get('forbidEvolution') is True
 assert m.get('audit',{}).get('alwaysFreshSessions') is True
 assert m.get('audit',{}).get('forbidReusePriorRoleHandles') is True

@@ -1,6 +1,6 @@
 # scv Orchestration Mode (Orca) — Global
 
-Grok = **coordinator**. Workers = **Grok/init + Claude/plan + Codex/plan-review + Codex/implement + Claude/code-review + Codex/review-fix + Grok/release**.
+OpenCode Go GLM-5.2 = **coordinator**. Workers = **OpenCode/init + Claude/plan + Codex/plan-review + Codex/implement + Claude/code-review + Codex/review-fix + OpenCode/release**.
 When workers finish, the coordinator produces a **FINAL** synthesis.
 
 Mode type: **supervised** — coordinator injects lifecycle, waits for worker_done (`check --wait`), then FINAL.
@@ -12,7 +12,7 @@ Mode type: **supervised** — coordinator injects lifecycle, waits for worker_do
 - 템플릿: `$HOME/.orca/scv/templates/`
 - 프로젝트 오버레이: `.orca/scv.md` (있으면) · `AGENTS.md` (있으면)
 - 런타임 상태(레포 내부): `.scv/state/$RUN_ID/` (**gitignore**, 커밋 금지)
-- packVersion: `meta.json` 의 `packVersion` (**1.3.9**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
+- packVersion: `meta.json` 의 `packVersion` (**1.3.10**). 변경 이력: `LESSONS.md` / `meta.notes.changelog_*`
 
 ## 사용자 대면 언어 (필수 · 한글)
 
@@ -31,7 +31,7 @@ coordinator 진행·질문·FINAL = **한국어**. role/path/task id/CLI 영문 
 
 ## Human decision gates · AskUser (필수 · pack 1.3.6)
 
-Grok 팀장 세션의 **`ask_user_question` (AskUser)** 가 사람 확인 UI다.
+coordinator 세션의 **`ask_user_question` (AskUser)** 가 사람 확인 UI다.
 
 ### 적대 검증 요약 (왜 이 규칙인가)
 
@@ -41,7 +41,7 @@ Grok 팀장 세션의 **`ask_user_question` (AskUser)** 가 사람 확인 UI다.
 | 모든 채팅을 메뉴로? | **아니오** — 선택/승인/중단이 있는 게이트만 |
 | 수정 내용 장문? | AskUser로 **모드** 선택 후 free-text (수정 본문은 Other/후속 메시지) |
 | Orca `decision_gate`와 이중 질문? | AskUser = **유일한 질문 UI** · Orca gate/`decisions.md`는 추적 기록(채팅 재질문 금지) |
-| 워커(Claude/Codex) AskUser? | **아니오** — 사람 게이트는 **coordinator(Grok) only** |
+| 워커(Claude/Codex) AskUser? | **아니오** — 사람 게이트는 **coordinator only** |
 
 ### 필수 AskUser (human decision gate)
 
@@ -126,7 +126,7 @@ Prose language: <resolvedDocsLanguage>. Keep identifiers/paths/commands/error qu
 
 ```bash
 orca status
-command -v grok codex claude
+command -v opencode codex claude
 # 권장 스모크 (모드별 플래그 주의 — LESSONS)
 # 터미널 워커(meta): codex … -a never -s danger-full-access
 # codex exec (비대화): -s danger-full-access --dangerously-bypass-approvals-and-sandbox  ( -a 사용 금지 )
@@ -151,14 +151,14 @@ command -v grok codex claude
 
 | 역할 | agent | ownership | command | 할 일 | 산출 | 제약 |
 |------|-------|-----------|---------|-------|------|------|
-| coordinator | grok | — | (세션) | 인터뷰·브리프·dispatch·gate 판정·FINAL | FINAL · decisions | plan/코드 **설계 본문** 미작성 |
-| init | grok | edit | `grok -m grok-4.5 --reasoning-effort high` | docs 골격·ARCHITECTURE 초안 | docs/** scaffolding | 소스 수정 금지 · 사용자 승인 후만 · 템플릿 참조 |
+| coordinator | opencode | — | `opencode -m opencode-go/glm-5.2 --auto` (현재 세션) | 인터뷰·브리프·dispatch·gate 판정·FINAL | FINAL · decisions | plan/코드 **설계 본문** 미작성 |
+| init | opencode | edit | `opencode -m opencode-go/glm-5.2 --auto` | docs 골격·ARCHITECTURE 초안 | docs/** scaffolding | 소스 수정 금지 · 사용자 승인 후만 · 템플릿 참조 |
 | plan | claude | edit | `claude --model opus --dangerously-skip-permissions` | plan.md 작성·수정 | `docs/plans/YYYY-MM-DD_<slug>.plan.md` | 코드 스니펫 금지 · gate·scope manifest 필수 |
-| plan-review | codex | review-only | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` | plan 검증 | `.scv/.../plan-review/codex.md` | 파일 수정 금지 |
-| implement | codex | edit | `codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access` | 배치 구현 · 로컬 커밋 · gate | 코드 + commits + gate 증거 | feature branch · scope 준수 |
+| plan-review | codex | review-only | `codex -m gpt-5.6-sol -c model_reasoning_effort="xhigh" -a never -s danger-full-access` | plan 검증 | `.scv/.../plan-review/codex.md` | 파일 수정 금지 |
+| implement | codex | edit | `codex -m gpt-5.6-luna -c model_reasoning_effort="xhigh" -a never -s danger-full-access` | 배치 구현 · 로컬 커밋 · gate | 코드 + commits + gate 증거 | feature branch · scope 준수 |
 | code-review | claude | review-only | `claude --model opus --dangerously-skip-permissions` | 코드 리뷰 | `.scv/.../code-review/claude-round-N.md` | 수정 금지 |
 | review-fix | codex | edit | `codex -m gpt-5.6-sol -c model_reasoning_effort="high" -a never -s danger-full-access` | 리뷰 반영 · gate | 코드 + commits + gate | P0/P1 범위만 |
-| release | grok | edit | `grok -m grok-4.5 --reasoning-effort high` | 7a docs · 7b push 확인 | changelog·CR·ARCHI·push-status | 코드 설계 본문 금지 · push는 확인 후 |
+| release | opencode | edit | `opencode -m opencode-go/glm-5.2 --auto` | 7a docs · 7b push 확인 | changelog·CR·ARCHI·push-status | 코드 설계 본문 금지 · push는 확인 후 |
 
 **모델 규칙:** 모델은 worker `command` 에만. `dispatch` 에 `--model` 없음.  
 **조율 유형:** supervised
@@ -195,6 +195,21 @@ command -v grok codex claude
 6. gstack 인터뷰로 Goal·범위·brief 확정 → `.scv/state/$RUN_ID/brief/plan-brief.md`.
 7. light preflight는 seed 전에도 가능. **워커 dispatch · plan.md 작성은 brief/Goal 확정 후만.**
 8. 보호 브랜치면 **최초 커밋 전** feature 브랜치 decision_gate.
+
+#### 0c. 로드맵 초안 (필수 · coordinator → plan handoff)
+
+인터뷰로 Goal·범위가 확정되면 coordinator 는 **plan 워커 dispatch 전**에 로드맵 초안을 반드시 작성한다.
+
+| 항목 | 내용 |
+|------|------|
+| **템플릿** | `templates/roadmap.md` (고정 · 항목·순서·섹션 제목 변경 금지) — `meta.intake.roadmapTemplate` |
+| **필수 포함** | (1) 수행할 작업 요약(목표·의도 한 단락) (2) 수정 영역 후보(파일/디렉터리 경로 목록 — **존재만 확인**, 본문/JSX 구조 분석 금지) |
+| **탐색 깊이** | `quick` file-list only. route/컴포넌트 파일 경로 파악 수준. `very thorough` JSX 구조·위계 후보 열거 **금지**(그것은 plan 워커의 역할) |
+| **산출** | `.scv/state/$RUN_ID/brief/roadmap.md` — 템플릿의 `{{placeholder}}`를 채운 단일 파일. 빈 칸은 `N/A` |
+| **전달** | plan 워커 `--spec` 의 handoff 경로에 `roadmap.md` 경로 포함. plan 워커는 이 초안을 출발점으로 plan.md 를 확장(파일 단위 섹션·스페이싱·위계 설계는 plan 워커가) |
+| **금지** | coordinator 가 로드맵에 코드 스니펫·상세 JSX 위계 설계·게이트 명령까지 작성 (plan/코드 설계 본문 미작성 원칙 유지). **템플릿 항목·순서 임의 변경 금지** |
+
+로드맵 초안은 **plan 워커가 plan.md 를 0부터 시작하지 않도록 하는 출발점**일 뿐, plan-review/승인 게이트를 우회하는 경로가 아니다. 템플릿이 고정이므로 매 런 동일한 구조의 첫 prompt 가 plan 워커에게 전달된다.
 
 ### 1) task-create
 
@@ -281,6 +296,7 @@ Orca CLI `--json` 응답은 공통 envelope 이다: 루트 `id`(RPC UUID) · `ok
 
 | 전환 | handoff 최소 (`.scv/state/$RUN_ID/handoff/` 또는 기존 산출 경로) |
 |------|------|
+| intake → plan (로드맵) | `brief/roadmap.md` 경로 + brief 요약 (로드맵 초안 = plan 출발점) |
 | plan → plan-review / plan fix 라운드 | plan 경로 · 직전 review verdict 경로 (resume 시 notes) |
 | plan 승인 → implement | 승인 plan 경로 · hash/scope/gate 동결 요약 · decisions 앵커 |
 | implement → code-review | plan 경로 · gate summary · 배치 report 경로 · 변경 범위 |
@@ -405,12 +421,12 @@ orca orchestration check --wait \
 
 - 조건: `docs/ARCHITECTURE.md` 또는 docs 골격 부재
 - 사용자 scaffolding 승인 후 · docs only · `templates/ARCHITECTURE.ko.md` 참조 (resolved ko일 때)
-- 워커: grok-init
+- 워커: opencode-init
 
 #### 1. plan 인터뷰 (coordinator)
 
-Goal → gstack 인터뷰 → brief: `.scv/state/$RUN_ID/brief/plan-brief.md`  
-인터뷰 중 plan 본문·코드 작성 금지.
+Goal → gstack 인터뷰 → brief: `.scv/state/$RUN_ID/brief/plan-brief.md` → **로드맵 초안**(`roadmap.md`, §0c) 작성 → plan 워커 handoff.
+인터뷰 중 plan 본문·코드 작성 금지. 로드맵은 경로 목록 수준(설계 본문 아님).
 
 #### 2. plan 작성
 
@@ -484,7 +500,7 @@ Goal → gstack 인터뷰 → brief: `.scv/state/$RUN_ID/brief/plan-brief.md`
 
 #### 7a. release docs
 
-- **기본:** grok-release 워커 dispatch (task/dispatch/worker_done 증거)
+- **기본:** opencode-release 워커 dispatch (task/dispatch/worker_done 증거)
 - coordinator 대행 시 decisions에 `release:coordinator-exception` + 사유·파일 목록
 - 버전 · changelog · CR 승격 · ARCHITECTURE — 경로/bump는 plan 또는 `.orca/scv.md` (`versionPolicy`: 기본 `root-only`)
 - 프로즈 언어 = resolvedDocsLanguage
@@ -705,7 +721,8 @@ docs/
 ```text
 run.json          # 아래 스키마
 brief/plan-brief.md
-plan-review/codex.md
+  brief/roadmap.md
+  plan-review/codex.md
 plan-refine/decisions.md
 implement/batch-N.report.md
 quality-gate/*.md
@@ -812,13 +829,13 @@ review-only: `verdict` APPROVED | REQUEST_CHANGES | NEEDS_REWORK.
 
 ## Anti-patterns
 
-- plan/코드 설계를 Grok가 직접 작성
+- plan/코드 설계를 coordinator가 직접 작성
 - Claude∥Codex 이중 full plan 병렬 작성 후 팀장 합본
 - dispatch `--model` · meta 밖 모델 발명
 - `git add -A` · `.scv/**` 커밋
 - worker_done만 보고 gate PASS
 - 보호 브랜치 커밋 · 태스크마다 자동 push
-- P0를 SUCCESS_WITH_ACCEPTED_RISK · Grok risk accept 자가승인
+- P0를 SUCCESS_WITH_ACCEPTED_RISK · coordinator risk accept 자가승인
 - 제목 퍼지로 task 재사용 · `task-create --title` (잘못된 플래그)
 - Empty Goal을 오류로 반복 · **추정 ship 옵션 메뉴를 seed 없이 선제**
 - seed 있는 메시지를 무시하고 다시 「무엇을 ship할까요?」만 물음
