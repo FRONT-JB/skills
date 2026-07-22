@@ -1,0 +1,57 @@
+{
+  "_comment": "FORMAT EXAMPLE ONLY — a fictional note-taking SaaS. Do NOT copy this into a real map. Derive every node and flow from the project the skill is actually run in.",
+  "meta": {
+    "title": "Notekeeper — 아키텍처 & 플로우 (예시)",
+    "snapshot": "예시 데이터 · 실제 프로젝트가 아님",
+    "intro": "이 파일은 <b>스키마 예시</b>입니다. 실제 스킬 실행 시에는 대상 프로젝트를 분석한 데이터로 교체하세요."
+  },
+  "cats": {
+    "actor":   { "label": "행위자" },
+    "ui":      { "label": "프론트 화면" },
+    "api":     { "label": "API · Handler" },
+    "domain":  { "label": "도메인 로직" },
+    "data":    { "label": "데이터 · 저장소" },
+    "external":{ "label": "외부 연동" }
+  },
+  "cols": ["actor", "ui", "api", "domain", "data", "external"],
+  "nodes": [
+    { "id": "user",      "cat": "actor",    "lab": "사용자",         "sub": "웹 브라우저" },
+    { "id": "editor",    "cat": "ui",       "lab": "NoteEditor",     "sub": "routes/notes/$id" },
+    { "id": "loginPage", "cat": "ui",       "lab": "LoginPage",      "sub": "routes/login" },
+    { "id": "noteApi",   "cat": "api",      "lab": "NoteController", "sub": "REST /notes" },
+    { "id": "authApi",   "cat": "api",      "lab": "AuthController", "sub": "POST /auth/login" },
+    { "id": "noteSvc",   "cat": "domain",   "lab": "NoteService",    "sub": "저장 · 검증" },
+    { "id": "authSvc",   "cat": "domain",   "lab": "AuthService",    "sub": "비밀번호 · JWT" },
+    { "id": "db",        "cat": "data",     "lab": "PostgreSQL",     "sub": "notes · users" },
+    { "id": "blob",      "cat": "data",     "lab": "ObjectStorage",  "sub": "첨부 파일" },
+    { "id": "mailer",    "cat": "external", "lab": "EmailProvider",  "sub": "SMTP 전송" }
+  ],
+  "flows": [
+    {
+      "id": "save-note",
+      "name": "노트 저장",
+      "actor": "사용자",
+      "sub": "에디터에서 작성한 노트를 저장한다",
+      "steps": [
+        { "from": "user",   "to": "editor",  "ttl": "노트 작성 후 저장",  "det": "NoteEditor.onSave" },
+        { "from": "editor", "to": "noteApi", "ttl": "저장 요청",         "det": "PUT /notes/:id" },
+        { "from": "noteApi","to": "noteSvc", "ttl": "본문 검증 · 정규화", "det": "NoteService.save" },
+        { "from": "noteSvc","to": "db",      "ttl": "노트 upsert",       "det": "notes 테이블" },
+        { "from": "noteSvc","to": "blob",    "ttl": "첨부 업로드",       "det": "ObjectStorage.put" }
+      ]
+    },
+    {
+      "id": "login",
+      "name": "로그인",
+      "actor": "사용자",
+      "sub": "자격 검증 후 토큰을 발급한다",
+      "steps": [
+        { "from": "user",     "to": "loginPage", "ttl": "이메일/비밀번호 제출", "det": "LoginPage.onSubmit" },
+        { "from": "loginPage","to": "authApi",   "ttl": "로그인 요청",         "det": "POST /auth/login" },
+        { "from": "authApi",  "to": "authSvc",   "ttl": "비밀번호 검증",       "det": "verifyPassword" },
+        { "from": "authSvc",  "to": "db",        "ttl": "사용자 조회",         "det": "users.findByEmail" },
+        { "from": "authSvc",  "to": "mailer",    "ttl": "신규 기기 알림 메일",  "det": "EmailProvider.send" }
+      ]
+    }
+  ]
+}

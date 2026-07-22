@@ -1,0 +1,480 @@
+<title>__TITLE__</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #0d1015;
+    --panel: #141922;
+    --panel-2: #101520;
+    --card: #1a212d;
+    --card-hi: #212a39;
+    --line: #263041;
+    --line-soft: #1d2531;
+    --ink: #d6deea;
+    --ink-strong: #f2f6fc;
+    --muted: #7b8698;
+    --muted-2: #5c6577;
+    --gold: #ffcf4d;
+    --gold-soft: rgba(255,207,77,0.16);
+    --gold-line: rgba(255,207,77,0.75);
+    /* categorical palette — assigned by column order, not by name */
+    --cat-1: #e56ca0; --cat-2: #57a6ea; --cat-3: #a98be2; --cat-4: #45cfb3;
+    --cat-5: #e6a44f; --cat-6: #63c06a; --cat-7: #e2765d; --cat-8: #8f9bb3;
+    --shadow: 0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -14px rgba(0,0,0,0.7);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", "Pretendard", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f0eee6; --panel: #f7f5ef; --panel-2: #efece3; --card: #faf9f5; --card-hi: #f7efe9;
+      --line: #e3ddce; --line-soft: #ece7db; --ink: #3a3833; --ink-strong: #33302b; --muted: #77726a; --muted-2: #a8a294;
+      --gold: #c15f3c; --gold-soft: rgba(193,95,60,0.12); --gold-line: rgba(193,95,60,0.72);
+      --cat-1: #c2557f; --cat-2: #3f7fb3; --cat-3: #7d5aa6; --cat-4: #1f8f7d;
+      --cat-5: #b3832a; --cat-6: #5f8a46; --cat-7: #9e6a44; --cat-8: #5c6b7d;
+      --shadow: 0 1px 2px rgba(20,20,19,0.05), 0 10px 26px -16px rgba(20,20,19,0.22);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d1015; --panel: #141922; --panel-2: #101520; --card: #1a212d; --card-hi: #212a39;
+    --line: #263041; --line-soft: #1d2531; --ink: #d6deea; --ink-strong: #f2f6fc; --muted: #7b8698; --muted-2: #5c6577;
+    --gold: #ffcf4d; --gold-soft: rgba(255,207,77,0.16); --gold-line: rgba(255,207,77,0.75);
+    --cat-1: #e56ca0; --cat-2: #57a6ea; --cat-3: #a98be2; --cat-4: #45cfb3;
+    --cat-5: #e6a44f; --cat-6: #63c06a; --cat-7: #e2765d; --cat-8: #8f9bb3;
+    --shadow: 0 1px 0 rgba(255,255,255,0.03), 0 8px 24px -14px rgba(0,0,0,0.7);
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg:#f0eee6; --panel:#f7f5ef; --panel-2:#efece3; --card:#faf9f5; --card-hi:#f7efe9;
+    --line:#e3ddce; --line-soft:#ece7db; --ink:#3a3833; --ink-strong:#33302b; --muted:#77726a; --muted-2:#a8a294;
+    --gold:#c15f3c; --gold-soft:rgba(193,95,60,0.12); --gold-line:rgba(193,95,60,0.72);
+    --cat-1: #c2557f; --cat-2: #3f7fb3; --cat-3: #7d5aa6; --cat-4: #1f8f7d;
+    --cat-5: #b3832a; --cat-6: #5f8a46; --cat-7: #9e6a44; --cat-8: #5c6b7d;
+    --shadow:0 1px 2px rgba(20,20,19,0.05), 0 10px 26px -16px rgba(20,20,19,0.22);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans);
+    font-size: 14px; line-height: 1.618; -webkit-font-smoothing: antialiased; overflow: hidden;
+  }
+  .app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+  header {
+    padding: 20px 22px 16px; border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  }
+  .h-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink-strong); margin: 0; text-wrap: balance; }
+  .snap {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; background: var(--card);
+  }
+  .snap b { color: var(--gold); font-weight: 600; }
+  .theme-toggle {
+    margin-left: auto; width: 34px; height: 34px; flex: none; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--muted);
+    cursor: pointer; display: grid; place-items: center; transition: color .15s, border-color .15s;
+  }
+  .theme-toggle:hover { color: var(--ink-strong); border-color: var(--muted); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .theme-toggle svg { display: block; }
+  .lede { margin: 7px 0 0; max-width: 88ch; color: var(--muted); font-size: 13.5px; }
+  .lede b { color: var(--ink-strong); font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 7px 18px; margin-top: 14px; }
+  .lg { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .lg .dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+  main { flex: 1; display: flex; min-height: 0; }
+
+  .map {
+    flex: 1; min-width: 0; overflow: auto; padding: 18px;
+    background: radial-gradient(1100px 420px at 12% -6%, rgba(87,166,234,0.05), transparent 60%), var(--bg);
+  }
+  .map-inner { position: relative; min-width: min-content; }
+  svg.wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 3; }
+  .wire { fill: none; stroke: var(--gold-line); stroke-linecap: round; }
+  #arw path { fill: var(--gold-line); }
+  .cols { display: flex; gap: 16px; align-items: flex-start; position: relative; z-index: 1; }
+  .col { flex: none; width: 198px; display: flex; flex-direction: column; gap: 11px; }
+  .col-head {
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted-2); padding: 0 2px 6px; display: flex; align-items: center; gap: 6px;
+    border-bottom: 1px dashed var(--line); margin-bottom: 3px;
+  }
+  .col-head .n { color: var(--muted); font-family: var(--mono); font-weight: 600; letter-spacing: 0; }
+
+  .node {
+    position: relative; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); padding: 12px 13px 12px 16px; box-shadow: var(--shadow);
+    transition: opacity .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  .node::before {
+    content: ""; position: absolute; left: 0; top: 4px; bottom: 4px; width: 3.5px;
+    border-radius: 0 3px 3px 0; background: var(--nc, var(--line)); opacity: .85;
+  }
+  .node .lab {
+    font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--ink-strong);
+    letter-spacing: -0.02em; line-height: 1.618; word-break: normal; overflow-wrap: break-word;
+  }
+  .node .sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.618; }
+
+  .selecting .node { opacity: .32; }
+  .selecting .node.on { opacity: 1; }
+  .node.on {
+    border-color: var(--gold-line); background: var(--card-hi);
+    box-shadow: var(--shadow), 0 0 0 1px var(--gold-soft), 0 0 20px -6px var(--gold-soft);
+  }
+  .node.focus { transform: translateY(-1px); }
+  .node.focus::after { content: ""; position: absolute; inset: -1px; border-radius: 9px; box-shadow: 0 0 0 2px var(--gold); pointer-events: none; }
+
+  .badge-wrap { position: absolute; top: -10px; right: -8px; display: flex; flex-direction: row-reverse; gap: 3px; z-index: 6; }
+  .bdg {
+    width: 21px; height: 21px; border-radius: 50%; background: var(--gold); color: #1a1204;
+    font-family: var(--mono); font-size: 12px; font-weight: 700; display: grid; place-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.45); border: 2px solid var(--bg);
+  }
+
+  .side {
+    width: 376px; flex: none; border-left: 1px solid var(--line);
+    display: flex; flex-direction: column; background: var(--panel); min-height: 0;
+  }
+  .panel { display: flex; flex-direction: column; min-height: 0; }
+  .panel.flows { flex: 0 0 auto; max-height: 46%; }
+  .panel.steps { flex: 1 1 auto; border-top: 1px solid var(--line); }
+  .p-head { padding: 12px 16px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .p-title { font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted-2); }
+  .clear {
+    font-family: var(--sans); font-size: 11px; color: var(--muted); background: transparent;
+    border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; cursor: pointer; transition: .15s;
+  }
+  .clear:hover { color: var(--ink-strong); border-color: var(--muted); }
+  .clear:disabled { opacity: .4; cursor: default; }
+
+  .flow-list { overflow: auto; padding: 0 10px 12px; display: flex; flex-direction: column; gap: 5px; }
+  .flow {
+    text-align: left; width: 100%; cursor: pointer; border: 1px solid transparent;
+    border-radius: 9px; padding: 11px 13px; background: transparent; color: inherit;
+    font-family: var(--sans); transition: background .15s, border-color .15s;
+  }
+  .flow:hover { background: var(--card); border-color: var(--line-soft); }
+  .flow.active { background: var(--gold-soft); border-color: var(--gold-line); }
+  .flow .fl-top { display: flex; align-items: center; gap: 8px; }
+  .flow .fl-name { font-size: 14.5px; font-weight: 650; color: var(--ink-strong); }
+  .flow.active .fl-name { color: var(--gold); }
+  .flow .fl-actor {
+    margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 20px; padding: 2px 8px; white-space: nowrap;
+  }
+  .flow .fl-sub { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.618; }
+
+  .step-list { overflow: auto; padding: 4px 18px 22px; }
+  .step-hint { color: var(--muted); font-size: 13.5px; padding: 14px 2px; line-height: 1.618; }
+  .step {
+    display: grid; grid-template-columns: 24px 1fr; gap: 13px; padding: 13px 6px 14px;
+    border-bottom: 1px solid var(--line-soft); cursor: default; border-radius: 8px; transition: background .14s;
+  }
+  .step:hover { background: var(--card); }
+  .step .sn {
+    width: 23px; height: 23px; border-radius: 50%; background: var(--gold); color: #1a1204;
+    font-family: var(--mono); font-size: 12.5px; font-weight: 700; display: grid; place-items: center; margin-top: 1px;
+  }
+  .step .route {
+    font-family: var(--mono); font-size: 12px; margin-bottom: 4px; letter-spacing: -0.01em;
+    display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  }
+  .step .route .fr, .step .route .to { font-weight: 600; }
+  .step .route .arw { color: var(--muted-2); }
+  .step .ttl { font-size: 14.5px; font-weight: 650; color: var(--ink-strong); line-height: 1.618; }
+  .step .det { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-top: 5px; line-height: 1.618; word-break: break-word; }
+
+  .map::-webkit-scrollbar, .flow-list::-webkit-scrollbar, .step-list::-webkit-scrollbar { width: 10px; height: 10px; }
+  .map::-webkit-scrollbar-thumb, .flow-list::-webkit-scrollbar-thumb, .step-list::-webkit-scrollbar-thumb {
+    background: var(--line); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box;
+  }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  @media (max-width: 960px) {
+    body { overflow: auto; }
+    .app { height: auto; }
+    main { flex-direction: column; }
+    .map { flex: none; height: 56vh; }
+    .side { width: auto; border-left: none; border-top: 1px solid var(--line); }
+    .panel.flows { max-height: none; }
+    .flow-list { max-height: 220px; }
+  }
+</style>
+
+<div class="app">
+  <header>
+    <div class="h-top">
+      <h1 id="title"></h1>
+      <span class="snap" id="snap"></span>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="테마 전환"></button>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div class="legend" id="legend"></div>
+  </header>
+
+  <main>
+    <div class="map" id="map">
+      <div class="map-inner" id="mapInner">
+        <svg class="wires" id="wires" aria-hidden="true">
+          <defs>
+            <marker id="arw" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z"></path>
+            </marker>
+          </defs>
+        </svg>
+        <div class="cols" id="cols"></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <section class="panel flows">
+        <div class="p-head">
+          <span class="p-title" id="flowsTitle">Flows</span>
+          <button class="clear" id="clear" disabled>선택 해제</button>
+        </div>
+        <div class="flow-list" id="flowList"></div>
+      </section>
+      <section class="panel steps">
+        <div class="p-head"><span class="p-title" id="stepsTitle">Steps</span></div>
+        <div class="step-list" id="stepList"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script>
+/* ===== project data (injected by scripts/build.py at the "__ARCHITECTURE_DATA__" marker) ===== */
+const DATA = "__ARCHITECTURE_DATA__";
+
+const UI = Object.assign({
+  flowsTitle: "Flows · 유저 액션",
+  stepsTitle: "Steps",
+  clear: "선택 해제",
+  stepUnit: "단계",
+  hint: "위 <b>Flows</b>에서 유저 액션을 하나 고르세요. 선택한 액션이 코드베이스를 통과하는 경로가 왼쪽 지도에 강조되고, 여기에 실제 함수·파일 기준 단계가 나타납니다.",
+  ledeDefault: "왼쪽은 코드베이스 전체 지도입니다. 오른쪽 위에서 <b>유저 액션(flow)</b>을 고르면 그 액션이 시스템을 통과하는 경로가 지도에 강조되고, 오른쪽 아래에 실제 함수·파일 기준 단계가 펼쳐집니다.",
+}, (DATA.meta && DATA.meta.ui) || {});
+
+const CATS = DATA.cats;
+const COLS = DATA.cols;
+const NODES = DATA.nodes;
+const FLOWS = DATA.flows;
+const NODE_BY_ID = Object.fromEntries(NODES.map(n => [n.id, n]));
+const PALETTE = 8;
+const colColor = key => `var(--cat-${(((COLS.indexOf(key)) % PALETTE) + PALETTE) % PALETTE + 1})`;
+const catLabel = key => (CATS[key] && CATS[key].label) || key;
+const wbr = s => String(s).replace(/([a-z0-9])([A-Z])/g, "$1<wbr>$2"); // break camelCase names cleanly
+
+/* ---------- header ---------- */
+const meta = DATA.meta || {};
+document.title = meta.title || "Architecture & Flows";
+document.getElementById("title").textContent = document.title;
+const snapEl = document.getElementById("snap");
+if (meta.snapshot) snapEl.innerHTML = meta.snapshot; else snapEl.remove();
+document.getElementById("lede").innerHTML = meta.intro || UI.ledeDefault;
+document.getElementById("flowsTitle").textContent = UI.flowsTitle;
+document.getElementById("clear").textContent = UI.clear;
+
+/* ---------- theme toggle (dark / light) ---------- */
+(function () {
+  const root = document.documentElement;
+  const btn = document.getElementById("themeToggle");
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  const ICON = {
+    sun: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>',
+    moon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'
+  };
+  let manual = false;
+  const eff = () => {
+    const a = root.getAttribute("data-theme");
+    return (a === "dark" || a === "light") ? a : (mq.matches ? "dark" : "light");
+  };
+  const paint = () => {
+    const t = eff();
+    btn.innerHTML = t === "dark" ? ICON.sun : ICON.moon;
+    btn.title = (t === "dark" ? "라이트" : "다크") + " 모드로 전환";
+  };
+  try { const s = localStorage.getItem("afm-theme"); if (s === "dark" || s === "light") { root.setAttribute("data-theme", s); manual = true; } } catch (e) {}
+  paint();
+  btn.addEventListener("click", () => {
+    const next = eff() === "dark" ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    manual = true;
+    try { localStorage.setItem("afm-theme", next); } catch (e) {}
+    paint();
+  });
+  if (mq.addEventListener) mq.addEventListener("change", () => { if (!manual) paint(); });
+})();
+
+/* ---------- legend ---------- */
+const legend = document.getElementById("legend");
+COLS.forEach(c => {
+  const el = document.createElement("span");
+  el.className = "lg";
+  el.innerHTML = `<span class="dot" style="background:${colColor(c)}"></span>${catLabel(c)}`;
+  legend.appendChild(el);
+});
+
+/* ---------- columns + nodes ---------- */
+const colsWrap = document.getElementById("cols");
+const nodeEls = {};
+COLS.forEach(c => {
+  const col = document.createElement("div");
+  col.className = "col";
+  const items = NODES.filter(n => n.cat === c);
+  const head = document.createElement("div");
+  head.className = "col-head";
+  head.innerHTML = `${catLabel(c)} <span class="n">${items.length}</span>`;
+  col.appendChild(head);
+  items.forEach(n => {
+    const el = document.createElement("div");
+    el.className = "node";
+    el.style.setProperty("--nc", colColor(n.cat));
+    el.innerHTML = `<div class="lab">${wbr(n.lab)}</div>` +
+      (n.sub ? `<div class="sub">${n.sub}</div>` : "") +
+      `<div class="badge-wrap"></div>`;
+    col.appendChild(el);
+    nodeEls[n.id] = el;
+  });
+  colsWrap.appendChild(col);
+});
+
+/* ---------- flows list ---------- */
+const flowListEl = document.getElementById("flowList");
+FLOWS.forEach(f => {
+  const b = document.createElement("button");
+  b.className = "flow";
+  b.dataset.flow = f.id;
+  b.innerHTML =
+    `<div class="fl-top"><span class="fl-name">${f.name}</span>` +
+    (f.actor ? `<span class="fl-actor">${f.actor}</span>` : "") + `</div>` +
+    (f.sub ? `<div class="fl-sub">${f.sub}</div>` : "");
+  b.addEventListener("click", () => selectFlow(f.id));
+  flowListEl.appendChild(b);
+});
+
+/* ---------- selection ---------- */
+const wires = document.getElementById("wires");
+const mapInner = document.getElementById("mapInner");
+const stepList = document.getElementById("stepList");
+const stepsTitle = document.getElementById("stepsTitle");
+const clearBtn = document.getElementById("clear");
+let current = null;
+
+clearBtn.addEventListener("click", clearFlow);
+
+function clearFlow() {
+  current = null;
+  document.querySelectorAll(".flow.active").forEach(e => e.classList.remove("active"));
+  document.body.classList.remove("selecting");
+  Object.values(nodeEls).forEach(el => { el.classList.remove("on", "focus"); el.querySelector(".badge-wrap").innerHTML = ""; });
+  clearWires();
+  clearBtn.disabled = true;
+  stepsTitle.textContent = UI.stepsTitle;
+  stepList.innerHTML = `<div class="step-hint">${UI.hint}</div>`;
+}
+
+function clearWires() { wires.querySelectorAll(".wire").forEach(e => e.remove()); }
+
+function selectFlow(id) {
+  const f = FLOWS.find(x => x.id === id);
+  if (!f) return;
+  current = f;
+  document.querySelectorAll(".flow").forEach(e => e.classList.toggle("active", e.dataset.flow === id));
+  document.body.classList.add("selecting");
+  clearBtn.disabled = false;
+
+  Object.values(nodeEls).forEach(el => { el.classList.remove("on", "focus"); el.querySelector(".badge-wrap").innerHTML = ""; });
+
+  f.steps.forEach((s, i) => {
+    [s.from, s.to].forEach(nid => nodeEls[nid] && nodeEls[nid].classList.add("on"));
+    const target = nodeEls[s.to];
+    if (target) {
+      const b = document.createElement("span");
+      b.className = "bdg";
+      b.textContent = i + 1;
+      target.querySelector(".badge-wrap").appendChild(b);
+    }
+  });
+
+  stepsTitle.textContent = `${UI.stepsTitle} · ${f.name} · ${f.steps.length}${UI.stepUnit}`;
+  stepList.innerHTML = "";
+  f.steps.forEach((s, i) => {
+    const fromN = NODE_BY_ID[s.from] || { lab: s.from, cat: null };
+    const toN = NODE_BY_ID[s.to] || { lab: s.to, cat: null };
+    const row = document.createElement("div");
+    row.className = "step";
+    row.dataset.idx = i;
+    row.innerHTML =
+      `<div class="sn">${i + 1}</div>` +
+      `<div>` +
+        `<div class="route">` +
+          `<span class="fr" style="color:${colColor(fromN.cat)}">${fromN.lab}</span>` +
+          `<span class="arw">&rarr;</span>` +
+          `<span class="to" style="color:${colColor(toN.cat)}">${toN.lab}</span>` +
+        `</div>` +
+        `<div class="ttl">${s.ttl}</div>` +
+        (s.det ? `<div class="det">${s.det}</div>` : "") +
+      `</div>`;
+    row.addEventListener("mouseenter", () => focusStep(i));
+    row.addEventListener("mouseleave", () => focusStep(-1));
+    stepList.appendChild(row);
+  });
+
+  requestAnimationFrame(() => drawWires(f, -1));
+}
+
+function focusStep(idx) {
+  if (!current) return;
+  Object.values(nodeEls).forEach(el => el.classList.remove("focus"));
+  if (idx >= 0) {
+    const s = current.steps[idx];
+    nodeEls[s.from] && nodeEls[s.from].classList.add("focus");
+    nodeEls[s.to] && nodeEls[s.to].classList.add("focus");
+  }
+  drawWires(current, idx);
+}
+
+function center(el, base) {
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top };
+}
+
+function drawWires(f, focusIdx) {
+  clearWires();
+  const base = mapInner.getBoundingClientRect();
+  wires.setAttribute("width", mapInner.offsetWidth);
+  wires.setAttribute("height", mapInner.offsetHeight);
+  const NS = "http://www.w3.org/2000/svg";
+  f.steps.forEach((s, i) => {
+    const a = nodeEls[s.from], b = nodeEls[s.to];
+    if (!a || !b || s.from === s.to) return;
+    const p1 = center(a, base), p2 = center(b, base);
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const bow = Math.min(38, len * 0.12);
+    const cx = mx + (-dy / len) * bow, cy = my + (dx / len) * bow;
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("class", "wire");
+    path.setAttribute("d", `M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
+    const dim = focusIdx >= 0 && focusIdx !== i;
+    path.setAttribute("stroke-width", dim ? "1" : (focusIdx === i ? "2.4" : "1.5"));
+    path.setAttribute("opacity", dim ? "0.14" : (focusIdx === i ? "1" : "0.5"));
+    path.setAttribute("marker-end", "url(#arw)");
+    wires.appendChild(path);
+  });
+}
+
+let raf;
+function redraw() { if (current) { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => drawWires(current, -1)); } }
+window.addEventListener("resize", redraw);
+new ResizeObserver(redraw).observe(mapInner);
+
+if (FLOWS.length) selectFlow(FLOWS[0].id); else clearFlow();
+</script>
