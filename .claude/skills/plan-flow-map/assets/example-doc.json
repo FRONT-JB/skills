@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "title": "예시 — 결제 리팩터링 실행 계획",
+    "eyebrow": "구현 계획 · PLAN",
+    "subtitle": "흩어진 결제 로직을 단일 PaymentService로 통합한다. 공개 계약을 officeId 단일로 좁히고, 스키마는 유지한 채 데이터만 비파괴로 수렴시킨다.",
+    "source": "example · docs/plans/2026-07-22_payments.plan.md · <b>main</b> · a1b2c3d (형태 확인용 · 복사 금지)"
+  },
+  "blocks": [
+    { "type": "heading", "level": 2, "text": "한눈 요약", "summary": true },
+    { "type": "callout", "tone": "goal", "title": "목표", "body": "결제 승인·환불을 `PaymentService` 하나로 통합하고 컨트롤러에서 결제 로직을 걷어낸다." },
+    { "type": "bullets", "title": "핵심 변경", "items": [
+      "승인/환불을 `PaymentService`로 이관",
+      "결제사 `429` 레이트리밋에 지수 백오프 재시도 추가",
+      "레거시 `checkoutCtl` 결제 분기 제거"
+    ] },
+    { "type": "stats", "items": [
+      { "value": "8", "label": "변경 파일" }, { "value": "12", "label": "상한" },
+      { "value": "3", "label": "배치" }, { "value": "2", "label": "신규" }, { "value": "1", "label": "삭제" }
+    ] },
+    { "type": "callout", "tone": "gate", "title": "핵심 게이트", "body": "`pnpm --filter api test -- payment` 통과 + e2e 결제 스모크 green." },
+    { "type": "callout", "tone": "warn", "title": "최상위 위험", "body": "환불 부분취소 경로 누락 가능성 · 결제사 API 레이트리밋." },
+
+    { "type": "heading", "level": 2, "text": "목표와 범위" },
+    { "type": "prose", "text": "결제 승인·환불만 이번 런에서 통합한다. 정산·회계 연동은 범위 밖이다." },
+    { "type": "compare", "columns": [
+      { "label": "현재 공개 모델", "items": ["`branchId` 노출", "결제 로직이 컨트롤러에 산재"] },
+      { "label": "목표 공개 모델", "items": ["`officeId` 단일", "`PaymentService`가 단일 진입점"] }
+    ] },
+
+    { "type": "heading", "level": 2, "text": "API 계약" },
+    { "type": "endpoint", "method": "POST", "path": "/api/v1/offices/{officeId}/payments", "tag": "신규", "summary": "결제 승인", "desc": "office 단위 결제를 생성한다. 슬롯 충돌 시 `409`.", "params": { "headers": ["필드", "위치", "필수", "설명"], "rows": [["officeId", "path", "Y", "대상 오피스"], ["amount", "body", "Y", "결제 금액(정수, 원)"]] }, "request": { "amount": 15000, "method": "card" }, "response": { "id": "pay_1", "status": "confirmed" }, "note": "동일 요청 재시도는 멱등 처리되어 기존 결제를 반환한다." },
+
+    { "type": "heading", "level": 2, "text": "데이터 모델" },
+    { "type": "entity", "name": "Payment", "sub": "firestore · payments/{id}", "fields": [
+      { "name": "id", "type": "string" },
+      { "name": "officeId", "type": "string", "note": "legacy branchId 대체" },
+      { "name": "amount", "type": "number" },
+      { "name": "status", "type": "'confirmed' | 'refunded'" }
+    ], "relations": ["Office 1—N Payment"] },
+
+    { "type": "heading", "level": 2, "text": "변경될 파일" },
+    { "type": "tree", "lines": [
+      { "depth": 0, "name": "packages/shared/", "kind": "dir" },
+      { "depth": 1, "name": "payment.schema.ts", "kind": "file", "change": "신규", "note": "canonical 타입" },
+      { "depth": 0, "name": "apps/api/", "kind": "dir" },
+      { "depth": 1, "name": "payment.service.ts", "kind": "file", "change": "신규", "note": "charge/refund 단일 진입점" },
+      { "depth": 1, "name": "checkout.controller.ts", "kind": "file", "change": "수정", "note": "결제 분기 → PaymentService 위임" },
+      { "depth": 1, "name": "legacy-charge.ts", "kind": "file", "change": "삭제", "note": "구 결제 경로 제거" },
+      { "depth": 1, "name": "migrations/", "kind": "dir" },
+      { "depth": 2, "name": "1791900000000-ConvergePayments.ts", "kind": "file", "change": "신규", "note": "INSERT/UPDATE만 · down no-op" }
+    ] },
+
+    { "type": "heading", "level": 2, "text": "구현 순서" },
+    { "type": "table", "headers": ["#", "작업", "책임 경계"], "rows": [
+      ["1", "shared 결제 스키마 추가", "`packages/shared` · 비파괴"],
+      ["2", "PaymentService 이관", "`apps/api` · migration 포함"],
+      ["3", "레거시 경로 제거 + 회귀 테스트", "green 확인"]
+    ] },
+
+    { "type": "heading", "level": 2, "text": "게이트" },
+    { "type": "code", "title": "gate command", "text": "pnpm --filter api test -- payment && pnpm --filter api e2e -- payment-smoke" }
+  ]
+}

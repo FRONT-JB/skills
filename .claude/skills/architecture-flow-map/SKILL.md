@@ -2,7 +2,8 @@
 name: architecture-flow-map
 description: >
   현재 프로젝트의 코드베이스를 분석해, 전체 구조 지도(좌) + 유저 액션 flow 목록(우상) + 선택한
-  flow의 단계별 진행(우하)으로 구성된 인터랙티브 HTML 아티팩트를 생성한다. flow를 고르면 그 경로가
+  flow의 단계별 진행(우하)으로 구성된 인터랙티브 self-contained HTML 파일(cache/<slug>.html)을 생성한다.
+  어디에도 게시(publish)하지 않고 로컬 HTML 파일만 만든다. flow를 고르면 그 경로가
   지도에 강조되고 실제 함수·파일 기준 단계가 펼쳐진다. 결과물은 다크/라이트 대응 self-contained HTML.
   트리거: "아키텍처 아티팩트", "아키텍처 지도", "코드베이스 지도 만들어줘", "flow 다이어그램",
   "architecture flow map", "codebase map artifact", "구조 시각화 아티팩트".
@@ -32,12 +33,26 @@ argument-hint: "[프로젝트 경로 또는 강조할 도메인(선택)]"
 - `references/data-schema.md` — `data.json` 스키마. **작업 전 반드시 읽는다.**
 - `assets/example-data.json` — 스키마 예시(형태 확인용, 복사 금지).
 
-경로는 `~/.claude/skills/architecture-flow-map/` 기준.
+이 문서의 모든 경로는 **`$SKILL_DIR`**(이 SKILL.md가 들어 있는 스킬 디렉토리) 기준이다.
+셸에서 쓰기 전에 실제 절대경로로 설정한다 — 현재 머신 예: `SKILL_DIR=~/.agents/skills/architecture-flow-map`.
+(`~/.claude/skills/architecture-flow-map` 심볼릭 링크로도 같은 디렉토리를 가리킨다.)
+경로를 하드코딩하지 말고 항상 `$SKILL_DIR` 기준으로 참조한다.
+
+## 출력 (게시 없음)
+
+이 스킬은 **어디에도 게시(publish)하지 않는다.** 최종 산출물은 `cache/<slug>.html` 파일 하나다.
+실행할 때마다 스킬 경로 아래 `cache/`에 영구 파일로 남긴다.
+
+- `$SKILL_DIR/cache/<slug>.html` — 완성된 HTML 파일 (**최종 산출물**, 브라우저로 열기)
+- `$SKILL_DIR/cache/<slug>.data.json` — 재생성용 데이터(build.py가 자동 저장)
+
+`<slug>`는 대상 프로젝트 디렉토리 이름을 kebab-case로(예: `ride-office`). 같은 프로젝트를 다시
+실행하면 같은 파일을 덮어써 최신 산출물을 유지한다. 재분석 없이 바로 다시 열 수 있다.
+`build.py`는 출력 경로가 `cache/` 밖이어도 항상 `cache/`에 사본을 남긴다.
 
 ## 절차
 
-작업 파일(`data.json`, `architecture.html`)은 스크래치패드에 만든다. 사용자가 레포에 커밋하길
-원할 때만 레포로 옮긴다.
+`data.json`은 스크래치패드에 임시로 써도 되고, 최종 HTML은 위 `cache/<slug>.html`로 빌드한다.
 
 ### Step 0 — 스키마 숙지 + 스냅샷 메타
 - `references/data-schema.md`를 읽는다.
@@ -79,21 +94,25 @@ argument-hint: "[프로젝트 경로 또는 강조할 도메인(선택)]"
 호출 체인을 실제로 열어 따라가고, 불확실하면 `(추정)` 표기. 코드상 없는 단계는 넣지 않는다.
 
 ### Step 5 — data.json 작성
-스키마대로 `<scratch>/data.json`을 쓴다. `meta.title`은 "<프로젝트명> — 아키텍처 & 플로우".
+스키마대로 `data.json`을 쓴다(스크래치패드 또는 캐시 폴더). `meta.title`은 "<프로젝트명> — 아키텍처 & 플로우".
 모든 flow step의 `from`/`to`는 존재하는 node `id`여야 한다(build.py가 검증).
 
-### Step 6 — 빌드
+### Step 6 — 빌드 (캐시 경로로 출력)
+`<slug>`는 프로젝트 디렉토리 이름의 kebab-case.
 ```bash
-python3 ~/.claude/skills/architecture-flow-map/scripts/build.py <scratch>/data.json <scratch>/architecture.html
+# SKILL_DIR = 이 스킬 디렉토리 (이 SKILL.md가 있는 곳)
+python3 "$SKILL_DIR/scripts/build.py" <data.json> "$SKILL_DIR/cache/<slug>.html"
 ```
+`build.py`가 `cache/<slug>.html`과 재생성용 `cache/<slug>.data.json`을 남긴다(캐시).
 검증 실패 시(미존재 노드 참조, 컬럼 누락 등) 메시지대로 `data.json`을 고쳐 다시 빌드한다.
 
-### Step 7 — (선택) 로컬 확인 후 게시
-- 로컬 확인이 필요하면: 스크래치패드에서 `python3 -m http.server`로 charset UTF-8 서빙 후 브라우저로 연다
-  (프로젝트 폴더 밖 `file://`는 정적 스냅샷이라 JS가 안 돈다 — HTTP로 띄워야 flow/지도가 보인다).
-- 게시: Artifact 도구로 `<scratch>/architecture.html`을 게시한다.
-  - `title` = `meta.title`, `favicon` = `🧭`, `description`에 한 줄 요약.
-  - 사용자가 "같은 링크 유지"를 원하면 같은 file_path로 재게시(같은 세션) 또는 `url` 전달.
+### Step 7 — 확인 및 안내 (게시 없음)
+- 최종 산출물은 `cache/<slug>.html` 하나다. **이 스킬은 어디에도 게시(publish)하지 않는다.**
+  Artifact 등 게시 도구를 호출하지 않는다.
+- 확인: 파일을 **브라우저로 직접 열면 된다.** standalone 문서 + `<meta charset="utf-8">`가 들어 있어
+  `file://`에서도 한글·JS가 정상 동작한다. (에이전트 preview 도구가 `file://` JS를 못 돌리면
+  그때만 `python3 -m http.server`로 서빙해 확인한다.)
+- 사용자에게 **생성된 파일 경로**를 알려주고, "브라우저로 열기"만 안내한다.
 
 ## 품질 체크(끝내기 전)
 - [ ] 모든 노드·flow가 이 프로젝트 코드에서 확인된 것인가? (지어낸 것/타 프로젝트 잔재 없음)
@@ -104,6 +123,6 @@ python3 ~/.claude/skills/architecture-flow-map/scripts/build.py <scratch>/data.j
 ## 참고
 - 결과물은 self-contained · 다크/라이트 자동 대응(보는 사람 테마 따라감) · 반응형이다.
 - 컬럼이 많으면 넓은 화면에서도 맵이 가로 스크롤될 수 있다(의도된 캔버스 스크롤).
-- "dev 갱신 때마다 자동" 같은 라이브 갱신은 아티팩트 자체로는 불가. 필요하면 이 스킬을
-  CI(예: push 시 build.py 실행 후 같은 URL로 재게시)로 감싸는 별도 작업이 필요하다.
+- 브랜치가 갱신돼도 HTML은 자동으로 바뀌지 않는다(스냅샷). 최신화하려면 스킬을 다시 실행한다.
+  필요하면 CI(push 시 build.py 재실행)로 감쌀 수 있다.
 - UI chrome 라벨 기본값은 한국어다. 영어 등으로 바꾸려면 `meta.ui`로 오버라이드한다(스키마 참고).

@@ -1,0 +1,70 @@
+{
+  "meta": {
+    "title": "역삼 단일 오피스 전환 구현 계획",
+    "eyebrow": "구현 계획",
+    "subtitle": "예약 도메인을 branch 혼용에서 단일 office 모델로 좁히고, 공개 계약과 내부 저장 경계를 분리한다.",
+    "source": "예시 · docs/plans/2026-07-22_office.plan.md · <b>main</b> · a1b2c3d"
+  },
+  "blocks": [
+    { "type": "heading", "text": "목표와 완료 조건" },
+    { "type": "prose", "text": "현행은 `branchId`가 공개 API에 그대로 노출되어 office와 branch 개념이 뒤섞여 있다. 이 런에서 공개 계약을 `officeId` 단일로 좁히고, 내부 저장은 비파괴로 유지한 채 점진 전환한다." },
+    { "type": "bullets", "title": "범위", "items": [
+      "frontend: 직접 노출된 `branchId` 사용 제거, `officeId`로 치환",
+      "backend: 예약 API를 office 단위로 정리, 레거시 필드 하위호환 유지",
+      "shared: `Reservation` 스키마를 canonical 타입으로 통합"
+    ] },
+    { "type": "bullets", "title": "비목표 (Out of scope)", "items": [
+      "정산/회계 연동", "다중 오피스 동시 예약", "레거시 데이터 물리 삭제(후속 런)"
+    ] },
+    { "type": "callout", "tone": "gate", "title": "게이트", "body": "`pnpm --filter api test -- reservation` 통과 + reservation e2e 스모크 green + 타입체크 무경고." },
+
+    { "type": "heading", "text": "공개 계약과 내부 저장 경계" },
+    { "type": "compare", "columns": [
+      { "label": "현재 공개 모델", "items": ["`branchId` 직접 노출", "office = branch 혼용", "예약 응답에 내부 필드 누출"] },
+      { "label": "목표 공개 모델", "items": ["`officeId` 단일 키", "Reservation.office 고정", "공개 DTO ↔ 저장 스키마 분리"] }
+    ] },
+    { "type": "entity", "name": "Reservation", "sub": "firestore · reservations/{id} (내부 저장)", "fields": [
+      { "name": "id", "type": "string" },
+      { "name": "officeId", "type": "string", "note": "legacy branchId를 대체 (마이그레이션 매핑)" },
+      { "name": "branchId", "type": "string?", "note": "하위호환용 · deprecated" },
+      { "name": "slot", "type": "ISO8601" },
+      { "name": "status", "type": "'confirmed' | 'canceled'" }
+    ], "relations": ["Office 1—N Reservation", "User 1—N Reservation"] },
+
+    { "type": "heading", "text": "API 계약" },
+    { "type": "endpoint", "method": "GET", "path": "/api/v1/offices/{officeId}/reservations", "tag": "수정", "summary": "오피스 예약 목록", "desc": "office 단위로 예약을 조회한다. 기존 `branchId` 쿼리는 410으로 리다이렉트 안내.", "params": { "headers": ["필드", "위치", "필수", "설명"], "rows": [["officeId", "path", "Y", "대상 오피스"], ["from", "query", "N", "조회 시작(ISO8601)"], ["status", "query", "N", "confirmed | canceled"]] }, "response": { "items": [{ "id": "rsv_1", "officeId": "ofc_123", "slot": "2026-08-01T09:00:00Z", "status": "confirmed" }], "nextCursor": null } },
+    { "type": "endpoint", "method": "POST", "path": "/api/v1/offices/{officeId}/reservations", "tag": "신규", "summary": "예약 생성", "desc": "office 단위 예약을 만든다. 슬롯 충돌 시 `409`.", "params": { "rows": [["officeId", "string", "Y", "대상 오피스"], ["slot", "ISO8601", "Y", "예약 시간"]] }, "request": { "slot": "2026-08-01T09:00:00Z" }, "response": { "id": "rsv_2", "status": "confirmed" }, "note": "동일 슬롯 중복 요청은 멱등 처리되어 기존 예약을 반환한다." },
+    { "type": "endpoint", "method": "PATCH", "path": "/api/v1/reservations/{id}", "tag": "수정", "summary": "상태 전이", "desc": "예약 취소 등 상태 전이. `confirmed → canceled`만 허용." }
+  ,
+    { "type": "heading", "text": "구현 순서" },
+    { "type": "table", "headers": ["#", "작업", "책임 경계"], "rows": [
+      ["1", "shared 타입/스키마 리팩터 (비파괴)", "`packages/shared` · non-destructive"],
+      ["2", "backend 예약 API를 office 단위로 정리", "`apps/api` · migration 포함"],
+      ["3", "frontend `branchId` 사용처 치환", "`apps/web` · officeId로 교체"],
+      ["4", "레거시 필드 하위호환 어댑터", "`apps/api` · deprecated 응답 태깅"],
+      ["5", "e2e 스모크 + 회귀 테스트", "reservation flow green"]
+    ] },
+    { "type": "code", "title": "gate command", "text": "pnpm --filter api test -- reservation && pnpm --filter web test -- reservation" },
+
+    { "type": "heading", "text": "주요 파일 범위" },
+    { "type": "tree", "lines": [
+      { "depth": 0, "name": "packages/shared/", "kind": "dir" },
+      { "depth": 1, "name": "reservation.schema.ts", "kind": "file", "tag": "신규", "note": "canonical 타입" },
+      { "depth": 0, "name": "apps/api/", "kind": "dir" },
+      { "depth": 1, "name": "reservations.controller.ts", "kind": "file", "tag": "수정", "note": "office 파라미터" },
+      { "depth": 1, "name": "migrations/", "kind": "dir" },
+      { "depth": 2, "name": "2026-07-22_branch-to-office.ts", "kind": "file", "tag": "신규" },
+      { "depth": 0, "name": "apps/web/", "kind": "dir" },
+      { "depth": 1, "name": "hooks/useReservations.ts", "kind": "file", "tag": "수정", "note": "officeId로 교체" }
+    ] },
+    { "type": "callout", "tone": "warn", "body": "frontend와 backend를 **한 브랜치**에서 동시에 바꾸면 배포 순서가 꼬인다 — backend 하위호환을 먼저 배포한 뒤 frontend를 전환한다." },
+
+    { "type": "heading", "text": "완료 승인 기준" },
+    { "type": "bullets", "mono": true, "items": [
+      "pnpm --filter api test -- reservation  (green)",
+      "pnpm --filter web test -- reservation  (green)",
+      "grep -r 'branchId' apps/web/src  →  공개 경로 0건",
+      "reservation e2e 스모크 통과"
+    ] }
+  ]
+}

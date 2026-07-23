@@ -1,0 +1,1103 @@
+{
+  "meta": {
+    "title": "지점(branch) 관리 제거 · 역삼 단일 지점 고정",
+    "eyebrow": "구현 계획 · PLAN",
+    "subtitle": "Ride Office의 미사용 multi-branch 표면(관리 API·화면·선택 UI)을 제거하고, 예약·회의실을 canonical 역삼 단일 지점으로 고정한다. 스키마는 유지하고 데이터만 비파괴로 수렴시킨다.",
+    "source": "docs/plans/2026-07-20_fix-branch-to-yeoksam.plan.md · RUN <b>20260720-112000</b> · 2026-07-20 (rev.1)"
+  },
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "한눈 요약",
+      "summary": true
+    },
+    {
+      "type": "callout",
+      "tone": "goal",
+      "title": "목표",
+      "body": "사용자·MASTER가 지점을 생성/수정/선택하지 않도록 지점 관리 화면·메뉴·write API를 제거하고, 회의실 예약·관리 화면을 지점 선택 없이 `역삼`으로 자동 고정한다. DB의 지점 데이터도 단일 canonical `역삼` 지점으로 수렴시킨다(스키마·read API는 유지)."
+    },
+    {
+      "type": "bullets",
+      "title": "핵심 변경",
+      "items": [
+        "지점 관리 write API(`POST/PATCH /branches`)와 `/manage/branches` 라우트·관리 메뉴 제거",
+        "예약·회의실 화면에서 지점 선택 표면을 숨기고 내부적으로 canonical `역삼` 단일 지점으로 고정",
+        "FE exact 역삼 resolver 도입 — `status === ACTIVE && name === '역삼'` 정확 1개만 사용, 첫 ACTIVE fallback 제거(0/2+면 제출 disabled·타 id 미전송)",
+        "데이터 수렴 migration `ConvergeBranchesToYeoksam` — `INSERT`/`UPDATE`만 쓰는 비파괴 수렴, down은 no-op",
+        "read API(`GET /branches`, `GET /branches/:id`)·`Branch` 스키마·`MeetingRoom.branchId` FK는 배포 호환성 위해 유지"
+      ]
+    },
+    {
+      "type": "stats",
+      "items": [
+        {
+          "value": "36",
+          "label": "예상 변경 파일(실제 diff)"
+        },
+        {
+          "value": "45",
+          "label": "파일 상한"
+        },
+        {
+          "value": "5",
+          "label": "구현 배치"
+        },
+        {
+          "value": "2",
+          "label": "신규 파일(migration+spec)"
+        },
+        {
+          "value": "6",
+          "label": "migration 테스트 케이스"
+        }
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "gate",
+      "title": "핵심 게이트",
+      "body": "migration 단위 테스트가 **대체 불가 gate**: `pnpm --filter backend exec jest libs/src/migrations/test/converge-branches-to-yeoksam.spec.ts --runInBand`(6개 케이스, DB gate가 N/A여도 생략 금지). 함께 `pnpm --filter backend check:static`, `bash scripts/check-migration-safety.sh <migration>`(차단 6패턴 미포함), `pnpm --filter frontend regular:typecheck`, `pnpm --filter frontend lint`, `pnpm --filter frontend regular:build`를 통과해야 한다."
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "title": "최상위 위험",
+      "body": [
+        "**row lock:** `MeetingRoom` 전체 FK UPDATE는 테이블 row lock과 예약 조회 join에 영향을 줄 수 있다.",
+        "**비가역 down:** no-op down은 의도적이며, rollback은 코드 롤백이 아니라 배포 전 DB 백업/수동 복구로만 가능하다.",
+        "**read API 잔존:** read API를 남기므로 외부/미확인 소비자가 legacy INACTIVE branch를 조회할 수 있다."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Overview"
+    },
+    {
+      "type": "prose",
+      "text": "지점(branch) 관리를 제거하고 `역삼` 단일 지점으로 고정하는 작업의 배경·목표·범위."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "문제"
+    },
+    {
+      "type": "prose",
+      "text": "Ride Office는 multi-branch 구조지만 실제 운영은 `역삼` 한 지점만 쓴다. 미사용 표면이 비용·위험·데이터 표류를 만든다."
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "미사용 multi-branch 표면 노출: BE `POST/PATCH /branches` 관리 API · FE `/manage/branches` 관리 화면 · 예약·회의실 화면 지점 선택 dropdown · 회의실 생성 시 지점 선택 필드",
+        "유지보수 비용 + 오조작 위험 (역삼 외 지점 생성, 회의실을 잘못된 지점에 연결)",
+        "FE가 `역삼` 없으면 “첫 번째 ACTIVE 지점”으로 조용히 fallback → “역삼만 사용” 의도 위반 가능",
+        "DB에 역삼 외 지점 레코드·역삼 외 지점을 가리키는 회의실 잔존 가능 → 데이터도 역삼으로 수렴 필요"
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "목표"
+    },
+    {
+      "type": "prose",
+      "text": "지점 관리 표면·데이터·검증을 `역삼` 단일로 좁힌다."
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "사용자·MASTER는 지점을 생성/수정/선택하지 않는다 — 지점 관리 화면·메뉴·API(write) 제거.",
+        "회의실 예약·관리 화면은 지점 선택 없이 `역삼` 자동 고정. 표시가 필요한 곳은 `역삼` 문자열 고정 노출.",
+        "FE는 `status === ACTIVE && name === '역삼'` **정확 매치 1개**만 사용. 첫 ACTIVE fallback 제거, 매치 0개·2개↑면 예약/회의실 생성 차단 + 명시적 오류 표시, 다른 지점 id 절대 전송 금지.",
+        "DB 지점 데이터가 단일 **canonical** `역삼`으로 수렴. 모든 `MeetingRoom` FK가 canonical 역삼 참조, canonical 외 Branch(중복 역삼 포함)는 ACTIVE 아님."
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "gate",
+      "title": "제품 데이터 불변식",
+      "body": "ACTIVE이고 name = 역삼인 Branch가 **정확히 1개**(canonical) + 모든 `MeetingRoom.branchId`가 그 canonical id 참조. 물리적으로 Branch row가 1개만 남는다는 뜻은 아니다 — 감사·복구용 INACTIVE legacy row는 남는다."
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "위 변경 후 정적 검증·타입체크·lint·단위 테스트·migration 단위 테스트 gate 통과."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "비목표 (Out of scope)"
+    },
+    {
+      "type": "prose",
+      "text": "이번 런에서 손대지 않는 범위."
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "전자계약·전자결재·근태·세금계산서 등 branch와 무관한 도메인 리팩터.",
+        "회의실 예약 UX 전면 재설계 (지점 고정 반영 외 플로 변경 없음).",
+        "Branch 테이블/FK 전면 drop (기본 채택 안 함 — “Architecture · 스키마 결정” 참조. 필요 시 별도 Expand-Contract PR로 승격).",
+        "read API(`GET /branches`, `GET /branches/:id`) 제거 (배포 호환성 위해 이번 런은 유지 — 제거는 별도 호환성 조사 후 별도 run).",
+        "production/dev DB로의 실제 push·merge·배포 (사용자 확인 전 금지).",
+        "`MeetingRoomUnavailablePeriod` 등 현재 비활성 자원 기능."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Architecture"
+    },
+    {
+      "type": "prose",
+      "text": "branch 도메인의 영향 층·스키마 결정·데이터 수렴 migration 불변식·BE 축소·FE 고정·의존 주의를 정리한다."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "영향 범위 개요"
+    },
+    {
+      "type": "prose",
+      "text": "branch 도메인은 리포 전반에서 참조되지만 크게 네 층으로 나뉜다."
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "title": "영향 4층",
+      "items": [
+        "**관리 표면(management surface)** — BE `branch` write 경로(`POST/PATCH /branches`), FE `/manage/branches` 라우트 트리, 관리 네비게이션 메뉴. → **제거**.",
+        "**선택 표면(selection surface)** — 예약 화면 지점 dropdown(`RoomPickerField`, `DateNavigation`, 예약 생성/수정 모달), 회의실 생성 모달 지점 select. → 사용자에게 **숨기고** 내부적으로 canonical `역삼` 고정.",
+        "**읽기·표시 표면(read/display surface)** — 회의실·예약·이메일 DTO의 `branchId`/`branchName`, 대시보드·내 예약 목록 지점명 표시. → **유지**(역삼 고정 후 `branchName`은 항상 `역삼`).",
+        "**데이터·스키마(data/schema)** — `Branch` 엔티티, `MeetingRoom.branchId` FK, seed, 신규 데이터 수렴 migration. → 스키마 유지, **데이터만** 역삼 통합."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "스키마 결정 — 왜 전면 drop이 아닌 \"단일 마스터 유지\"인가"
+    },
+    {
+      "type": "prose",
+      "text": "권장안: **Branch 테이블·FK 유지 + 관리/선택 표면 제거 + 데이터 수렴 migration**."
+    },
+    {
+      "type": "bullets",
+      "title": "근거",
+      "items": [
+        "migration 정책(`.claude/rules/backend/migrations.md`, `docs/wiki/backend/typeorm-migrations.md`)이 `DROP TABLE`·`DROP COLUMN`·`RENAME`·`SET NOT NULL`·`ALTER COLUMN ... TYPE`·`CONCURRENTLY`를 pre-commit·PostToolUse hook에서 차단 → Branch 테이블 / `MeetingRoom.branchId` 컬럼 drop은 `migration-reviewed` 라벨 우회 + Expand-Contract 2단계(2 PR) 강제.",
+        "부팅 마이그레이션 + rolling deploy에서 컬럼/테이블 drop은 구버전 코드 SELECT를 깨뜨려 배포 윈도우 위험.",
+        "`역삼 단일 운영` 목표는 스키마 유지 + 데이터 수렴만으로 달성 — FK가 항상 역삼이면 회의실·예약·이메일 join·표시 로직 무변경 동작.",
+        "따라서 이번 런 migration은 `INSERT`/`UPDATE`만 쓰는 **비파괴 데이터 수렴**으로 설계 → 안전 검사·라벨 없이 통과."
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "title": "대안(전면 drop) — 비권장·별도 승격",
+      "body": [
+        "채택 시: Phase 1(`branchId` nullable화 + 모든 소비처 branch 미참조 전환 + shared enum 제거) → Phase 2(`migration-reviewed` 라벨로 FK/컬럼/테이블 drop).",
+        "meeting-room/reservation/email DTO·엔티티, shared enum, tsconfig paths까지 광범위하게 건드려 파일 수·리스크 급증 → scope manifest 상한 초과, 별도 run으로 분리."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "데이터 수렴 migration 불변식 (동결)"
+    },
+    {
+      "type": "prose",
+      "text": "신규 migration `ConvergeBranchesToYeoksam`은 아래 순서·규칙을 **동결**한다. 전 과정 `INSERT`/`UPDATE`만 사용, 차단 6패턴 미포함."
+    },
+    {
+      "type": "table",
+      "title": "불변식 순서·규칙 (동결)",
+      "headers": [
+        "#",
+        "규칙"
+      ],
+      "rows": [
+        [
+          "1",
+          "**canonical 역삼 선택·확정**"
+        ],
+        [
+          "1a",
+          "`name = '역삼'` Branch 중 (a) `deletedAt IS NULL` 우선, (b) 그중 `seq ASC` 첫 row를 canonical로 선택."
+        ],
+        [
+          "1b",
+          "non-deleted `역삼` 없으면 soft-deleted `역삼` 중 `seq ASC` 첫 row를 canonical로 선택해 **재활성화**(`deletedAt = NULL`)."
+        ],
+        [
+          "1c",
+          "`name = '역삼'` row가 전무하면 seed canonical 값(`name = '역삼'`, `address = '서울 강남구 테헤란로16길 17'`, `status = ACTIVE`, 신규 uuid)으로 **INSERT**."
+        ],
+        [
+          "1d",
+          "선택/생성한 canonical row를 `name = '역삼'`·`address = seed canonical`·`status = ACTIVE`·`deletedAt = NULL`로 **정규화**하고 `updatedAt` 갱신."
+        ],
+        [
+          "2",
+          "**회의실 FK 재지정** — 모든 `MeetingRoom` row(soft-deleted 포함)의 `branchId`를 canonical id로 UPDATE. soft-deleted 회의실도 orphan FK 방지 위해 포함. 이미 canonical인 row는 제외(불필요 write 축소)."
+        ],
+        [
+          "3",
+          "**non-canonical Branch 비활성화** — canonical 제외 **모든** Branch(중복 `역삼` 포함)를 `status = INACTIVE` UPDATE + `updatedAt` 갱신. hard delete·`deletedAt` 강제 없음(감사·복구용 legacy 보존). 이미 INACTIVE row는 제외."
+        ],
+        [
+          "4",
+          "**멱등성** — 2회차 실행에서 canonical 선택 동일 + FK/상태 이미 수렴 → 추가 변경 없음(second-run acceptance)."
+        ],
+        [
+          "5",
+          "**down = no-op** — 데이터 병합은 비가역이므로 down은 아무 것도 안 함. rollback은 코드 롤백이 아니라 배포 전 DB 백업/수동 복구로만 가능(→ \"Residual risks\")."
+        ]
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "body": "fresh seed 환경(이미 canonical 역삼 단독)에서는 1~3단계가 사실상 no-op. 실질 UPDATE는 역삼 외 데이터가 있는 공유/운영 DB에서만 발생."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "BE branch 모듈 축소 방향 (read 유지 경계)"
+    },
+    {
+      "type": "prose",
+      "text": "`branch` 모듈을 **read-only로 축소**한다 — write 표면은 걷어내고 read는 배포 호환성 위해 남긴다."
+    },
+    {
+      "type": "compare",
+      "columns": [
+        {
+          "label": "제거 (write)",
+          "items": [
+            "`POST/PATCH` 경로",
+            "그에 딸린 service/repository write 메서드",
+            "create/update DTO"
+          ]
+        },
+        {
+          "label": "유지 (read · 배포 호환성)",
+          "items": [
+            "`GET /branches`(목록)",
+            "`GET /branches/:id`(상세)",
+            "`BranchRepository` read 메서드"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "read 유지 이유",
+      "items": [
+        "`meeting-room.service`가 회의실 생성 시 지점 존재·ACTIVE 검증에 `BranchRepository` 사용.",
+        "FE가 canonical `역삼` id 해석에 `GET /branches` 재사용."
+      ]
+    },
+    {
+      "type": "bullets",
+      "title": "호환성·동결",
+      "items": [
+        "확인된 FE 소비자는 `GET /branches`뿐 — `GET /branches/:id` 소비자는 없으나 최소 변경·호환성 위해 상세 GET도 유지.",
+        "write API/메서드 미잔존은 아래 acceptance(`rg`)로 동결.",
+        "상세 GET 제거는 별도 호환성 조사 후 별도 run."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "FE 고정 방향 — exact 역삼 resolver (동결)"
+    },
+    {
+      "type": "prose",
+      "text": "FE는 canonical `역삼` id를 아래 규칙으로만 해석하고, 지점 dropdown·필터·관리 메뉴 UI를 제거한다."
+    },
+    {
+      "type": "bullets",
+      "title": "resolver 규칙 (동결)",
+      "items": [
+        "**정확 매치만** — `status === ACTIVE && name === '역삼'` row만 후보. 기존 `activeBranches.find(name === '역삼') ?? activeBranches[0]`의 **첫 ACTIVE fallback 제거**.",
+        "**1개일 때만 사용** — 후보가 정확히 1개면 그 id를 내부 사용.",
+        "**0개 또는 2개 이상** — 예약 제출·회의실 생성 disabled + 명시적 조회 오류(\"역삼 지점을 찾을 수 없습니다\"/\"역삼 지점 설정이 올바르지 않습니다\"). 다른 branch id를 payload로 **절대 미전송**.",
+        "**상태·저장 정리** — `-useReservationPage.ts`의 사용자 지점 선택 상태·branch 변경 handler 제거, `selectedBranchId` 계열은 canonical resolver 결과로 대체. localStorage(`ride:reservations:filter:v1`, legacy `ride:reservations:filter`)의 타 지점 `branchId`는 **무시**하고 더 이상 저장 안 함.",
+        "**resolver 위치** — 순수 함수(canonical 역삼 선택 helper)로 분리해 hook 렌더 없이 단위 테스트. `-useReservationPage.ts` co-located helper 또는 소형 helper 파일 중 구현 시 택1(파일 수는 cap 내 허용).",
+        "**표시 유지** — `branchName` 표시(내 예약, 대시보드 카드, 상세 모달) 유지. 역삼 고정 후 항상 `역삼` 채워짐."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "의존 관계 주의"
+    },
+    {
+      "type": "prose",
+      "text": "건드리지 않거나 유지해야 하는 참조들."
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "title": "의존 관계 주의",
+      "body": [
+        "`packages/shared/src/enums/branch-status.ts`의 `BranchStatus` — 엔티티·migration·`meeting-room.service`·FE 예약 훅이 계속 사용 → **유지**(전면 drop 경로 아닌 한 제거 금지).",
+        "`apps/frontend/regular/routes/routeTree.gen.ts` — TanStack Router 자동 생성물. `/manage/branches` 라우트 파일 삭제 후 dev/build 시 재생성, **손편집 금지**.",
+        "`-MemberCardGrid.tsx`의 `'branch-summary'` — skeleton loader 키 문자열로 branch 도메인과 무관. **변경 금지**."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Files to change (Scope manifest)"
+    },
+    {
+      "type": "prose",
+      "text": "실제 diff가 발생하는 파일을 그룹 `A`~`H`로 나눠, 경로·변경 종류·설명을 폴더 트리로 나열한다."
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "title": "표 기준",
+      "body": "아래 목록은 **권장안(단일 역삼 마스터 유지)** 기준이며, **실제 diff가 발생하는 파일만** 나열한다. 종류: 삭제 / 수정 / 신규 / 재생성. \"재생성\"은 도구가 자동 생성하므로 수동 편집 금지. `유지`(변경 없이 확인만) 파일은 baseline 카운트에서 제외하고 하단 \"유지 확인 목록\"에 따로 적는다."
+    },
+    {
+      "type": "stats",
+      "items": [
+        {
+          "value": "2",
+          "label": "신규"
+        },
+        {
+          "value": "26",
+          "label": "수정"
+        },
+        {
+          "value": "7",
+          "label": "삭제"
+        },
+        {
+          "value": "1",
+          "label": "재생성"
+        },
+        {
+          "value": "36",
+          "label": "총 변경 파일"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "A. DB · migration · 테스트 (backend)"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/backend/libs/src/migrations/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "{ts}-ConvergeBranchesToYeoksam.ts",
+          "kind": "file",
+          "change": "신규",
+          "note": "위 \"데이터 수렴 migration 불변식\" 1~5 구현. `INSERT/UPDATE`만 사용, down no-op."
+        },
+        {
+          "depth": 1,
+          "name": "test/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "converge-branches-to-yeoksam.spec.ts",
+          "kind": "file",
+          "change": "신규",
+          "note": "기존 `migrations/test/*.spec.ts` 관례를 따른 data migration 단위 테스트. 케이스: (1) 역삼 없음→생성, (2) INACTIVE/soft-deleted 역삼→재활성화·정규화, (3) 중복 역삼→canonical 1개만 ACTIVE·나머지 INACTIVE, (4) 타 지점 FK 회의실(soft-deleted 포함)→canonical 재지정, (5) 두 번째 실행 멱등(no 추가 변경), (6) down no-op."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "B. BE branch 모듈 (management 제거, read 유지)"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/backend/regular/src/modules/branch/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "branch.controller.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "`@Post create` / `@Patch update` 및 create/update DTO import 제거. GET 목록·상세 유지."
+        },
+        {
+          "depth": 1,
+          "name": "branch.service.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "create/update 메서드 + 해당 input/output 인터페이스 제거. getAll/getById 유지."
+        },
+        {
+          "depth": 1,
+          "name": "branch.repository.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "save/update 메서드 제거. findAll/findById 유지."
+        },
+        {
+          "depth": 1,
+          "name": "dtos/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "create-branch.dto.ts",
+          "kind": "file",
+          "change": "삭제",
+          "note": "write 표면 제거."
+        },
+        {
+          "depth": 2,
+          "name": "update-branch.dto.ts",
+          "kind": "file",
+          "change": "삭제",
+          "note": "write 표면 제거."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "C. FE 관리 표면 제거"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/frontend/regular/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "routes/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "_authenticated/_office/manage/",
+          "kind": "dir"
+        },
+        {
+          "depth": 3,
+          "name": "branches.tsx",
+          "kind": "file",
+          "change": "삭제",
+          "note": "지점 관리 layout 라우트."
+        },
+        {
+          "depth": 3,
+          "name": "branches/",
+          "kind": "dir"
+        },
+        {
+          "depth": 4,
+          "name": "index.tsx",
+          "kind": "file",
+          "change": "삭제",
+          "note": "지점 관리 index 라우트."
+        },
+        {
+          "depth": 4,
+          "name": "-BranchListPage.tsx",
+          "kind": "file",
+          "change": "삭제",
+          "note": "지점 목록 페이지."
+        },
+        {
+          "depth": 4,
+          "name": "-BranchCreateModal.tsx",
+          "kind": "file",
+          "change": "삭제",
+          "note": "지점 생성 모달."
+        },
+        {
+          "depth": 4,
+          "name": "-BranchEditModal.tsx",
+          "kind": "file",
+          "change": "삭제",
+          "note": "지점 수정 모달."
+        },
+        {
+          "depth": 2,
+          "name": "routeTree.gen.ts",
+          "kind": "file",
+          "change": "재생성",
+          "note": "라우트 삭제 후 자동 재생성. 수동 편집 금지. build 후 `/manage/branches` 잔재 없음 확인."
+        },
+        {
+          "depth": 1,
+          "name": "constants/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "navigation.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "`'지점 관리'` 관리 메뉴 항목 제거."
+        },
+        {
+          "depth": 2,
+          "name": "__tests__/",
+          "kind": "dir"
+        },
+        {
+          "depth": 3,
+          "name": "navigation.test.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "`'지점 관리'` 존재 단언 제거."
+        },
+        {
+          "depth": 1,
+          "name": "components/Sidebar/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "navigationIcons.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "`/manage/branches` 아이콘 매핑 제거."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "D. FE branch 서비스 (read로 축소)"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/frontend/regular/services/branch/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "branch.service.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "createBranch/updateBranch 제거. getBranches 유지."
+        },
+        {
+          "depth": 1,
+          "name": "queries.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "useCreate/useUpdate mutation 제거. useBranchListQuery 유지."
+        },
+        {
+          "depth": 1,
+          "name": "schema.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "create/update request schema 제거. branch/rows schema 유지."
+        },
+        {
+          "depth": 1,
+          "name": "type.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "Create/UpdateBranchRequest 타입 제거. `Branch` 타입 유지."
+        },
+        {
+          "depth": 1,
+          "name": "index.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "barrel export 갱신(제거된 심볼 정리)."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "E. FE 예약 화면 (지점 선택 제거 · exact 역삼 고정)"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/frontend/regular/routes/_authenticated/_office/reservations/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "hooks/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "-useReservationPage.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "exact 역삼 resolver로 대체(첫 ACTIVE fallback 제거), branch 변경 handler·다지점 분기 제거, `branchId` 저장/복원 제거·stale id 무시, 0/2+매치 시 disabled 신호 노출."
+        },
+        {
+          "depth": 2,
+          "name": "__tests__/",
+          "kind": "dir"
+        },
+        {
+          "depth": 3,
+          "name": "-useReservationPage.test.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "케이스 추가: exact 1개→해당 id 사용, 역삼 없음→disabled·타 id 미전송, 중복 역삼→disabled, stale localStorage branchId→무시. (resolver를 helper로 분리 시 해당 helper 테스트로 대체·병행 가능.)"
+        },
+        {
+          "depth": 1,
+          "name": "index.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 선택 props 배선 제거, resolver 결과·disabled 상태 전달."
+        },
+        {
+          "depth": 1,
+          "name": "components/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "-RoomPickerField.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 dropdown 제거. 회의실 dropdown만 역삼 회의실로 유지."
+        },
+        {
+          "depth": 2,
+          "name": "-DateNavigation.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 선택 dropdown 제거."
+        },
+        {
+          "depth": 2,
+          "name": "-ReservationCreateModal.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 선택 상태 제거, canonical 역삼 고정, 미해결 시 제출 disabled."
+        },
+        {
+          "depth": 2,
+          "name": "-ReservationEditModal.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 선택 상태 제거, canonical 역삼 고정, 미해결 시 제출 disabled."
+        },
+        {
+          "depth": 2,
+          "name": "-MobileReservationPanel.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "`\"선택한 지점...\"` 등 지점 선택 전제 문구 정리. `branchName` 표시는 유지."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "F. FE 회의실 관리 (생성 시 역삼 고정)"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/frontend/regular/routes/_authenticated/_office/manage/meeting-rooms/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "-MeetingRoomCreateModal.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 select 필드 제거. canonical 역삼 branchId 자동 사용, 미해결 시 생성 disabled·오류 표시."
+        },
+        {
+          "depth": 1,
+          "name": "-MeetingRoomListPage.tsx",
+          "kind": "file",
+          "change": "수정",
+          "note": "`PageShell` description copy에서 \"지점 ... 관리\" 문구 제거(지점은 역삼 고정). `지점명` 컬럼/표시는 read/display 결정대로 유지."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "G. E2E · 테스트 정리"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "apps/frontend/regular/e2e/specs/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "meeting-room-reservations.spec.ts",
+          "kind": "file",
+          "change": "수정",
+          "note": "`ReservationFilterInput.branchId` 및 `openReservationsPage(...)`의 branch id 주입 제거, 지점 버튼 `'역삼'` 선택 스텝 제거(선택 UI 제거 반영). 회의실 선택 흐름만 유지."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "H. 제품 문서 · wiki"
+    },
+    {
+      "type": "tree",
+      "lines": [
+        {
+          "depth": 0,
+          "name": "PRODUCT.md",
+          "kind": "file",
+          "change": "수정",
+          "note": "`manage branches`(L11), `branch operations`(L17) 등 지점 관리 서술을 \"역삼 단일 지점 고정 + 관리 없음\"으로 갱신."
+        },
+        {
+          "depth": 0,
+          "name": "docs/wiki/",
+          "kind": "dir"
+        },
+        {
+          "depth": 1,
+          "name": "domains/",
+          "kind": "dir"
+        },
+        {
+          "depth": 2,
+          "name": "office-resource.md",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 관리 제거·canonical 역삼 단일 고정·데이터 불변식 반영."
+        },
+        {
+          "depth": 2,
+          "name": "meeting-room.md",
+          "kind": "file",
+          "change": "수정",
+          "note": "지점 선택 제거·exact 역삼 고정 반영(기본 지점/fallback 문단 갱신)."
+        },
+        {
+          "depth": 1,
+          "name": "log.md",
+          "kind": "file",
+          "change": "수정(append)",
+          "note": "날짜/작업/변경 문서/이유 기록."
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "유지 확인 목록 (변경 없음 — baseline 카운트 제외)"
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "`apps/backend/scripts/branch.seed.ts` · `meetingRoom.seed.ts` · `seed.ts` — 이미 canonical `역삼` 단독. diff 없음을 확인만.",
+        "BE `list-branch.dto.ts` · `get-branch.dto.ts` · `branch.module.ts` · `exceptions/branch.exception.ts` — read/DI 유지.",
+        "BE 소비처(`meeting-room`, `meeting-room-reservation`, `email`, `app.module.ts`, 관련 DTO·repository·template) — `branchId`/`branchName` 유효, 변경 없음.",
+        "FE `-ReservationDetailModal.tsx` · `-MyReservationList.tsx` · `-MeetingRoomEditModal.tsx` — `branchName` 표시만, 변경 없음.",
+        "FE 대시보드 카드 테스트(`-DashboardContent`/`-RoomStatusCard`/`-TodayScheduleCard` `__tests__`) — 표시 fixture 유효. **원칙적으로 변경 없음**이며, 만약 gate에서 실패하면 그때 수정하고 그 파일을 scope 확장 gate로 보고한다.",
+        "FE `e2e/seed.ts` · `e2e/seed.test.ts` — 이미 역삼. 변경 없음."
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "gate",
+      "title": "예상 파일 수 / 상한",
+      "body": [
+        "**예상 파일 수(실제 diff) / 상한:** 신규 2 + BE 수정 3 + BE 삭제 2 + FE 삭제 5 + 재생성 1 + FE 수정(nav/service/reservation/meeting-room) 21 + e2e 1 + PRODUCT 1 + wiki 3 = **약 36개**. **상한 45개.** resolver helper를 별 파일로 분리하면 +1~2. 상한 초과 또는 \"유지 확인 목록\"의 파일이 실제로 변경되면 coordinator decision_gate.",
+        "승인 후 이 표·상한·종류가 **동결**된다. 이탈 시 범위 확장 gate."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Test Impact"
+    },
+    {
+      "type": "prose",
+      "text": "권장안이 어떤 테스트를 통과·변경하는지에 대한 가설, 승인 시 **동결(frozen)**되는 검증 절차, lint 재활성 대응 정책."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "가설"
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "**BE:** write 표면만 제거하고 read·엔티티·소비처 유지 → `check:static`(Biome·ls-lint·dep-cruiser·module:check)·`regular:build` 통과. 제거된 write 메서드의 미사용 import 정리 필요.",
+        "**BE spec:** `meeting-room-reservation` 계열(`역삼` fixture)은 branch relation·`branchName` 유지 → **불변** 예상.",
+        "**migration:** 새 데이터 로직이라 가설 대신 단위 테스트로 봉인. 멱등성·'모든 MeetingRoom FK가 canonical 1개로 수렴'은 DB 없이 재현.",
+        "**FE:** exact 역삼 resolver 도입 → `navigation.test.ts`의 `'지점 관리'` 단언·예약 훅의 branch 선택 전제 깨짐(예상). 대시보드/표시 테스트는 `branchName` 유지 → 통과 예상."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "검증 (frozen)"
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "**정적·타입·lint·단위:** `pnpm --filter backend check:static`, `pnpm --filter backend regular:build`, `pnpm --filter frontend lint`, `pnpm --filter frontend regular:typecheck`, `pnpm --filter frontend regular:test`.",
+        "**libs 타입 검사**(migration 포함): `apps/backend/node_modules/.bin/tsc --noEmit -p apps/backend/libs/tsconfig.lib.json`.",
+        "**migration 안전성**(파일 지정 · commit 무관 재현): `bash scripts/check-migration-safety.sh apps/backend/libs/src/migrations/<timestamp>-ConvergeBranchesToYeoksam.ts` — 차단 6패턴 미포함.",
+        "**migration 단위 테스트**(**대체 불가 gate**): `pnpm --filter backend exec jest libs/src/migrations/test/converge-branches-to-yeoksam.spec.ts --runInBand`. A절 6개 케이스 전부 포함, DB gate가 N/A여도 생략 금지.",
+        "**FE 번들·라우트 잔재:** `pnpm --filter frontend regular:build` 후 `rg -n \"/manage/branches\" apps/frontend/regular/routes/routeTree.gen.ts` 없음(라우트 재생성); write API 부재 `rg -n \"@Post|@Patch\" apps/backend/regular/src/modules/branch/branch.controller.ts` 없음, `rg -n \"createBranch|updateBranch|useCreateBranchMutation|useUpdateBranchMutation\" apps/frontend/regular/services/branch` 없음.",
+        "**DB gate**(가능 시): `pnpm --filter backend migration-show:local` → `migration-run:local` → postcondition SQL assertion → `seed:local`. postcondition — ACTIVE·`name = '역삼'` Branch 정확히 1개, 모든 `MeetingRoom.branchId`가 그 id와 동일, canonical 외 Branch는 ACTIVE 아님. env 부재 시 이유 기록 후 migration 단위 테스트·libs typecheck·safety script로 대체(생략 금지).",
+        "**e2e**(변경 직접 증거 · 우선): `.env.dev` 선로드 후 `pnpm --filter frontend regular:e2e -- meeting-room-reservations.spec.ts`. 전체 suite는 별도 최종 gate로 분리(선택). env·SSO 부재 시 이유 기록."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Lint 재활성 정책"
+    },
+    {
+      "type": "prose",
+      "text": "설정 로드 복구 등으로 이전에 죽어 있던 lint가 살아날 수 있음. 대응 정책 선택:"
+    },
+    {
+      "type": "bullets",
+      "title": "옵션",
+      "items": [
+        "☐ (A) 최소 autofix를 별 배치로 처리 (사용자 확인)",
+        "☐ (B) FAIL 보고 후 decision_gate",
+        "☑ **(C) 후속 이슈로 분리 — 선택 (기본 권장)**"
+      ]
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "title": "제약",
+      "body": "coordinator 자가 확장 금지."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "To-dos (배치)"
+    },
+    {
+      "type": "prose",
+      "text": "구현 작업을 5개 배치로 나누고, 각 배치의 번호 작업마다 통과해야 하는 `verify` 검증을 함께 둔다."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Batch 1 — 브랜치 준비 + DB 데이터 수렴 migration + 테스트"
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "items": [
+        "`feat/fix-branch-to-yeoksam` 브랜치 생성(현재 feature 브랜치 기준). — **verify:** `git status`로 깨끗한 시작 확인.",
+        "`pnpm --filter backend migration-show:local`로 최신 timestamp 확인 후 신규 timestamp(현재 최신 `1791800000000` 이후, 예 `1791900000000`) 결정. — **verify:** timestamp 충돌 없음.",
+        "`ConvergeBranchesToYeoksam` migration 작성(불변식 1~5). — **verify:** `bash scripts/check-migration-safety.sh <새 파일>` + `apps/backend/node_modules/.bin/tsc --noEmit -p apps/backend/libs/tsconfig.lib.json`.",
+        "`converge-branches-to-yeoksam.spec.ts` 작성(6개 케이스). — **verify:** `pnpm --filter backend exec jest libs/src/migrations/test/converge-branches-to-yeoksam.spec.ts --runInBand`.",
+        "seed 3종이 이미 canonical 역삼 단독임을 재확인. — **verify:** 코드 diff 없음."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Batch 2 — BE branch 모듈 read-only 축소"
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "items": [
+        "`branch.controller.ts`/`service.ts`/`repository.ts`에서 write 경로 제거, create/update DTO 삭제. — **verify:** `pnpm --filter backend check:static` + write API 부재 `rg` acceptance.",
+        "read 유지 확인(getAll/getById + `BranchRepository` read + `BranchNotFoundException`). — **verify:** `pnpm --filter backend regular:build`."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Batch 3 — FE 관리 표면 제거 + branch 서비스 축소"
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "items": [
+        "`/manage/branches` 라우트 5개 파일 삭제, `navigation.ts`·`navigationIcons.ts`·`navigation.test.ts` 정리. — **verify:** `pnpm --filter frontend regular:build`로 `routeTree.gen.ts` 재생성 후 `/manage/branches` 잔재 없음, `pnpm --filter frontend lint`.",
+        "`services/branch/*` write 심볼 제거(read 유지), barrel export 갱신. — **verify:** `pnpm --filter frontend regular:typecheck` + write 심볼 부재 `rg` acceptance."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Batch 4 — FE 예약·회의실 화면 exact 역삼 고정"
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "items": [
+        "`-useReservationPage.ts`를 exact 역삼 resolver로 전환(fallback 제거·stale id 무시·0/2+ disabled), 예약 index/RoomPickerField/DateNavigation/생성·수정 모달에서 지점 선택 제거. — **verify:** `pnpm --filter frontend regular:typecheck`.",
+        "`-useReservationPage.test.ts`(또는 resolver helper 테스트)에 exact 1/없음/중복/stale localStorage 케이스 추가. — **verify:** `pnpm --filter frontend regular:test`.",
+        "회의실 생성 모달에서 지점 select 제거, canonical 역삼 branchId 자동 사용, `-MeetingRoomListPage.tsx` copy 갱신. — **verify:** `pnpm --filter frontend lint`.",
+        "e2e helper(`ReservationFilterInput`/`openReservationsPage`)의 branch id 주입·선택 스텝 제거. — **verify:** (env 가능 시) `.env.dev` 선로드 후 `pnpm --filter frontend regular:e2e -- meeting-room-reservations.spec.ts`, 불가 시 이유 기록."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Batch 5 — 제품 문서/wiki + 최종 gate"
+    },
+    {
+      "type": "bullets",
+      "ordered": true,
+      "items": [
+        "`PRODUCT.md`·`office-resource.md`·`meeting-room.md` 갱신, `log.md` append. — **verify:** 링크·정합 확인.",
+        "전체 gate 재실행. — **verify:** 아래 Gate commands 전부."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Gate commands (frozen)"
+    },
+    {
+      "type": "prose",
+      "text": "동결된 게이트 명령 — 아래 순서로 실행한다."
+    },
+    {
+      "type": "prose",
+      "text": "정적·단위 — **항상 실행**."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "pnpm --filter backend check:static\npnpm --filter backend regular:build\napps/backend/node_modules/.bin/tsc --noEmit -p apps/backend/libs/tsconfig.lib.json\nbash scripts/check-migration-safety.sh apps/backend/libs/src/migrations/<timestamp>-ConvergeBranchesToYeoksam.ts\npnpm --filter backend exec jest libs/src/migrations/test/converge-branches-to-yeoksam.spec.ts --runInBand\npnpm --filter frontend lint\npnpm --filter frontend regular:typecheck\npnpm --filter frontend regular:test\npnpm --filter frontend regular:build"
+    },
+    {
+      "type": "prose",
+      "text": "targeted e2e — 우선. `.env.dev` 선로드 필수(AGENTS.md 참조)."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "set -a; source apps/backend/regular/envs/.env.dev; set +a\npnpm --filter frontend regular:e2e -- meeting-room-reservations.spec.ts"
+    },
+    {
+      "type": "prose",
+      "text": "DB/AWS 준비 시 migration 실동작 검증 — **순서 고정**."
+    },
+    {
+      "type": "code",
+      "lang": "text",
+      "text": "pnpm --filter backend migration-show:local\npnpm --filter backend migration-run:local\npnpm --filter backend seed:local"
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "title": "주의",
+      "body": [
+        "DB 실행 후 postcondition SQL로 확인: **ACTIVE 역삼 정확히 1개** + 모든 `MeetingRoom.branchId`가 그 id + canonical 외 `Branch`는 ACTIVE 아님.",
+        "**DB gate가 N/A여도** migration 단위 테스트·libs typecheck·safety script는 생략 금지.",
+        "전체 e2e suite(`pnpm --filter frontend regular:e2e`)는 별도 최종 gate(선택)로 구분.",
+        "루트 `turbo`에 `test` task 없음 → 루트 `pnpm test` 사용 금지(발명 금지)."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Constraints"
+    },
+    {
+      "type": "prose",
+      "text": "이 런의 제약·브랜치 전략·handoff용 잔여 위험."
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "scope manifest·상한 45 준수 — \"유지 확인 목록\" 변경 또는 상한 초과 시 coordinator decision_gate.",
+        "단일 역삼 마스터 유지 — Branch 테이블·`branchId` FK **drop 금지**(전면 drop은 별도 Expand-Contract run).",
+        "불변식: **ACTIVE canonical 역삼 1개 + 모든 `MeetingRoom.branchId`가 그 canonical 참조** — 물리 row 1개 뜻 아님(감사용 INACTIVE legacy 존재).",
+        "FE는 exact `ACTIVE && name === '역삼'` 1개만 — 첫 ACTIVE fallback 금지, 0/2+면 제출 disabled·타 id 미전송.",
+        "신규 migration은 `INSERT/UPDATE`만(차단 6패턴 미포함), down은 no-op.",
+        "read API `GET /branches`·`GET /branches/:id` 유지 — write API/메서드 부재는 `rg` acceptance로 동결.",
+        "`BranchStatus` shared enum·tsconfig paths·`package.json` exports 유지(전면 drop 경로 아님).",
+        "`routeTree.gen.ts` 수동 편집 금지(자동 재생성).",
+        "`git add -A` 금지 · `.scv/**` 스테이징 금지.",
+        "production/dev DB push·배포·merge는 사용자 확인 전 금지.",
+        "커밋·PR 문구 한글, 타입 형식 `feat|fix|refactor|docs|chore(도메인|frontend|backend): ...` 준수."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "브랜치 전략"
+    },
+    {
+      "type": "bullets",
+      "items": [
+        "plan 문서(docs only) 커밋은 `ride-genie/scv-user-mode-orchestration`에 유지.",
+        "구현은 전용 `feat/fix-branch-to-yeoksam` 권장 — 스택킹 얽히면 `dev` 또는 현재 feature 브랜치에서 분기하되 리뷰 단위 분리(구현 시 결정)."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "Residual risks (handoff 기록 대상)"
+    },
+    {
+      "type": "callout",
+      "tone": "warn",
+      "body": [
+        "**row lock:** `MeetingRoom` 전체 FK UPDATE는 row lock·예약 join에 영향 가능. 실제 row 수와 maintenance window 내 예상 실행시간을 handoff에 기록.",
+        "**비가역 down:** no-op down은 의도적 — rollback은 코드가 아닌 배포 전 DB 백업/수동 복구이므로 그 절차를 handoff에 기록.",
+        "**read API 잔존:** 유지된 read API로 외부/미확인 소비자가 legacy INACTIVE branch 조회 가능. FE는 exact ACTIVE 역삼만 소비, read API 제거는 별도 호환성 조사 후."
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Implementation deltas vs original plan"
+    },
+    {
+      "type": "callout",
+      "tone": "info",
+      "body": "구현 중 범위 확장·decision_gate 결과가 여기 기록된다. 현재 비어 있음."
+    }
+  ]
+}

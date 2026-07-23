@@ -95,6 +95,23 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(html, encoding="utf-8")
 
+    # Always keep a persistent copy under the skill's cache/ so a generated map can be
+    # reopened or rebuilt later without re-analyzing the project. Named by output stem.
+    cache_dir = here.parent / "cache"
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        # the source data (for regeneration) is always saved to the cache
+        (cache_dir / (out_path.stem + ".data.json")).write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        # keep an html copy only when the build output lives outside cache/
+        if out_path.resolve().parent != cache_dir.resolve():
+            (cache_dir / out_path.name).write_text(html, encoding="utf-8")
+            print(f"[build.py] cached -> {cache_dir / out_path.name} (+ .data.json)")
+        else:
+            print(f"[build.py] cached -> {out_path} (+ .data.json)")
+    except OSError as e:
+        print(f"[build.py] (cache copy skipped: {e})")
+
     ncols = len(cols)
     nnodes = len(data["nodes"])
     nflows = len(data["flows"])
