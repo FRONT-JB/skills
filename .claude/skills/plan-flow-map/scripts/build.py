@@ -32,11 +32,18 @@ def esc(s):
     return _html.escape("" if s is None else str(s), quote=False)
 
 
+_SAFE_INLINE = ("b", "strong", "i", "em")
+
+
 def inline(s):
-    """Escape, then honor a tiny markdown subset: `code`, **bold**. Safe for untrusted plan text."""
+    """Escape, then honor a tiny markdown subset (`code`, **bold**) plus a whitelist of literal
+    inline tags (<b>/<strong>/<i>/<em>) that authors sometimes embed directly (e.g. a source badge
+    that bolds the branch). <code> is deliberately excluded to avoid clashing with backtick spans."""
     s = esc(s)
     s = re.sub(r"`([^`]+)`", lambda m: "<code>" + m.group(1) + "</code>", s)
     s = re.sub(r"\*\*([^*]+)\*\*", lambda m: "<b>" + m.group(1) + "</b>", s)
+    for tag in _SAFE_INLINE:
+        s = s.replace(f"&lt;{tag}&gt;", f"<{tag}>").replace(f"&lt;/{tag}&gt;", f"</{tag}>")
     return s
 
 
