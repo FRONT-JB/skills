@@ -106,12 +106,23 @@ def r_prose(b):
     return as_paragraphs(b.get("text", b.get("html", "")))
 
 
+def _bullet_items(items):
+    """Render bullet items; an item may be a string (leaf) or {text, items:[...]} (nested)."""
+    out = []
+    for it in items:
+        if isinstance(it, dict):
+            sub = f"<ul class='blk-list'>{_bullet_items(it.get('items', []))}</ul>" if it.get("items") else ""
+            out.append(f"<li>{inline(it.get('text', ''))}{sub}</li>")
+        else:
+            out.append(f"<li>{inline(it)}</li>")
+    return "".join(out)
+
+
 def r_bullets(b):
     tag = "ol" if b.get("ordered") else "ul"
     cls = "blk-list mono" if b.get("mono") else "blk-list"
-    lis = "".join(f"<li>{inline(x)}</li>" for x in b.get("items", []))
     sub = f"<div class='blk-sub'>{inline(b['title'])}</div>" if b.get("title") else ""
-    return f"{sub}<{tag} class='{cls}'>{lis}</{tag}>"
+    return f"{sub}<{tag} class='{cls}'>{_bullet_items(b.get('items', []))}</{tag}>"
 
 
 def r_callout(b):

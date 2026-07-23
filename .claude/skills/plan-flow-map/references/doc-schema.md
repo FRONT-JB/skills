@@ -39,9 +39,14 @@ Paragraph(s). `text` is a string (blank lines split paragraphs) or an array of p
 ### bullets
 List. `items` (array). Optional `title` (uppercase sub-label), `ordered` (numbered), `mono`
 (monospace bordered chips — good for commands / acceptance criteria).
+**중첩**: 항목은 문자열(leaf)이거나 `{ "text": "...", "items": [ ... ] }`(하위 목록)일 수 있다 — 부모-자식
+계층이 있는 체크리스트/단계는 이렇게 중첩한다(평탄화 금지).
 ```json
 { "type": "bullets", "title": "범위", "items": ["frontend 직접 노출 제거", "backend 예약 API 정리"] }
 { "type": "bullets", "mono": true, "items": ["pnpm --filter api test", "pnpm lint --max-warnings 0"] }
+{ "type": "bullets", "items": [
+  { "text": "T1 새 repository 작성", "items": ["본문 이관", "클래스명 규칙"] },
+  { "text": "T2 기존 파일 삭제", "items": ["typeorm.repository.ts", "interfaces/"] } ] }
 ```
 
 ### callout
